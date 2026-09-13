@@ -2,8 +2,6 @@ import React, { useState, useEffect, useContext, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
-import StatusBadge from '../components/StatusBadge';
-import PriorityBadge from '../components/PriorityBadge';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
 import axios from 'axios';
 import 'leaflet/dist/leaflet.css';
@@ -42,10 +40,14 @@ const SubmitComplaint = () => {
     locationDescription: ''
   });
 
-  // AI Insights State
+  // AI NLP & Vision States
   const [aiResult, setAiResult] = useState(null);
   const [analyzingAi, setAnalyzingAi] = useState(false);
   const [isAiApplied, setIsAiApplied] = useState(false);
+
+  // Vision Specific State
+  const [visionData, setVisionData] = useState(null);
+  const [scanningVision, setScanningVision] = useState(false);
   
   // Duplicate Detection State
   const [duplicates, setDuplicates] = useState([]);
@@ -61,7 +63,7 @@ const SubmitComplaint = () => {
 
   const debounceTimer = useRef(null);
 
-  // Trigger AI Analysis when Title or Description changes (Debounced 500ms)
+  // Trigger AI Text Analysis
   useEffect(() => {
     if (formData.title.trim().length >= 4 || formData.description.trim().length >= 10) {
       if (debounceTimer.current) clearTimeout(debounceTimer.current);
@@ -85,7 +87,6 @@ const SubmitComplaint = () => {
       setAiResult(res.data.aiClassification);
       setDuplicates(res.data.duplicateMatches || []);
 
-      // If strong duplicate found (>60% similarity), notify user
       if (res.data.duplicateMatches?.length > 0 && res.data.duplicateMatches[0].similarity >= 60) {
         setShowDuplicateModal(true);
       }
@@ -93,6 +94,43 @@ const SubmitComplaint = () => {
       console.error('AI analysis error:', err);
     } finally {
       setAnalyzingAi(false);
+    }
+  };
+
+  // AI Computer Vision Analysis on Photo Upload
+  const handlePhotoUploadAndScan = async (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+
+    setImage(file);
+    setImagePreview(URL.createObjectURL(file));
+    setScanningVision(true);
+
+    const data = new FormData();
+    data.append('image', file);
+    data.append('customHint', file.name);
+
+    try {
+      const res = await axios.post(`${API_URL}/complaints/ai-vision`, data, {
+        headers: { 'Content-Type': 'multipart/form-data' }
+      });
+
+      const v = res.data.visionResult;
+      setVisionData(v);
+
+      // Auto-Populate Form Fields with High-Confidence Vision Detection
+      setFormData(prev => ({
+        ...prev,
+        title: prev.title || v.suggestedTitle,
+        description: prev.description || v.suggestedDescription,
+        category: v.category,
+        priority: v.priority,
+      }));
+      setIsAiApplied(true);
+    } catch (err) {
+      console.error('Vision scanning error:', err);
+    } finally {
+      setScanningVision(false);
     }
   };
 
@@ -119,14 +157,6 @@ const SubmitComplaint = () => {
     }
   };
 
-  const handleImageChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setImage(file);
-      setImagePreview(URL.createObjectURL(file));
-    }
-  };
-
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError('');
@@ -141,8 +171,8 @@ const SubmitComplaint = () => {
     data.append('locationDescription', formData.locationDescription);
     data.append('lat', position.lat);
     data.append('lng', position.lng);
-    data.append('isAiCategorized', isAiApplied || (aiResult?.confidence >= 70));
-    data.append('aiConfidence', aiResult?.confidence || 0);
+    data.append('isAiCategorized', isAiApplied || (aiResult?.confidence >= 70) || (visionData?.confidence >= 80));
+    data.append('aiConfidence', visionData?.confidence || aiResult?.confidence || 0);
 
     if (image) {
       data.append('image', image);
@@ -171,12 +201,12 @@ const SubmitComplaint = () => {
             <div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                 <h2 style={{ fontSize: '1.75rem', fontWeight: 800 }}>➕ Lodge Maintenance Complaint</h2>
-                <span className="brand-badge" style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)' }}>
-                  ✨ AI Powered
+                <span className="brand-badge" style={{ background: 'linear-gradient(135deg, #06b6d4, #8b5cf6)' }}>
+                  📸 AI Vision + NLP
                 </span>
               </div>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-                With real-time automatic classification & duplicate issue prevention
+                Snap or upload a photo for instant AI damage detection & auto-fill
               </p>
             </div>
             <button className="btn btn-outline" onClick={() => navigate('/dashboard')}>
@@ -190,8 +220,91 @@ const SubmitComplaint = () => {
             </div>
           )}
 
-          {/* AI Intelligence Suggestions Widget */}
-          {aiResult && (
+          {/* AI Computer Vision Live Analysis Box */}
+          <div 
+            className="glass-panel" 
+            style={{ 
+              padding: '1.5rem', 
+              marginBottom: '1.75rem', 
+              border: '1px solid rgba(139, 92, 246, 0.4)',
+              background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.08), rgba(6, 182, 212, 0.08))'
+            }}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '1rem' }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                  <span style={{ fontSize: '1.3rem' }}>📸</span>
+                  <strong style={{ fontSize: '1.05rem', color: '#c4b5fd' }}>AI Computer Vision Scanner</strong>
+                  {scanningVision && (
+                    <span style={{ fontSize: '0.75rem', color: '#67e8f9', animation: 'pulse 1.5s infinite' }}>
+                      ⚡ Scanning visual features & defect signatures...
+                    </span>
+                  )}
+                </div>
+
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>
+                  Upload or snap a photo of the defect. AI Vision will automatically identify the problem, severity, and populate your ticket.
+                </p>
+
+                <div style={{ display: 'flex', gap: '1rem', alignItems: 'center', flexWrap: 'wrap' }}>
+                  <label className="btn btn-sm btn-primary" style={{ cursor: 'pointer', background: 'linear-gradient(135deg, #8b5cf6, #3b82f6)' }}>
+                    📷 {imagePreview ? 'Change / Rescan Photo' : 'Upload & Scan Photo'}
+                    <input 
+                      type="file" 
+                      accept="image/*" 
+                      style={{ display: 'none' }} 
+                      onChange={handlePhotoUploadAndScan}
+                    />
+                  </label>
+                  {imagePreview && (
+                    <span style={{ fontSize: '0.8rem', color: '#34d399', fontWeight: 600 }}>
+                      ✓ Photo attached ({image?.name})
+                    </span>
+                  )}
+                </div>
+              </div>
+
+              {imagePreview && (
+                <div style={{ position: 'relative' }}>
+                  <img 
+                    src={imagePreview} 
+                    alt="Uploaded defect" 
+                    style={{ width: '130px', height: '90px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', border: '2px solid var(--primary)' }} 
+                  />
+                  {scanningVision && (
+                    <div style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(6,182,212,0.4)', borderRadius: 'var(--radius-sm)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', color: 'white', fontWeight: 700 }}>
+                      Scanning...
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Vision Detection Result Card */}
+            {visionData && (
+              <div style={{ marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.4rem' }}>
+                  <div style={{ fontSize: '0.9rem', fontWeight: 700, color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                    <span>🎯</span> Defect Detected: {visionData.detectedDefect}
+                  </div>
+                  <span style={{ fontSize: '0.75rem', background: 'rgba(16, 185, 129, 0.2)', color: '#6ee7b7', padding: '0.2rem 0.6rem', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>
+                    {visionData.confidence}% Vision Confidence
+                  </span>
+                </div>
+
+                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginTop: '0.5rem' }}>
+                  {visionData.visualTags?.map(tag => (
+                    <span key={tag} style={{ fontSize: '0.7rem', background: 'rgba(255,255,255,0.08)', padding: '0.2rem 0.5rem', borderRadius: '4px', color: 'var(--text-muted)' }}>
+                      #{tag}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* AI NLP Text Assistant (if typed manually) */}
+          {aiResult && !visionData && (
             <div 
               className="glass-panel" 
               style={{ 
@@ -205,13 +318,12 @@ const SubmitComplaint = () => {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
                     <span style={{ fontSize: '1.1rem' }}>🤖</span>
-                    <strong style={{ color: '#67e8f9', fontSize: '0.95rem' }}>CampusFix AI Insights</strong>
+                    <strong style={{ color: '#67e8f9', fontSize: '0.95rem' }}>Text Analysis Insights</strong>
                     <span style={{ fontSize: '0.75rem', background: 'rgba(6, 182, 212, 0.2)', color: '#a5f3fc', padding: '0.2rem 0.5rem', borderRadius: 'var(--radius-full)' }}>
-                      {aiResult.confidence}% Match Confidence
+                      {aiResult.confidence}% Match
                     </span>
-                    {analyzingAi && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Analyzing...</span>}
                   </div>
-                  <div style={{ fontSize: '0.85rem', color: '#e2e8f0', lineHeight: '1.4' }}>
+                  <div style={{ fontSize: '0.85rem', color: '#e2e8f0' }}>
                     {aiResult.reasoning}
                   </div>
                 </div>
@@ -220,13 +332,9 @@ const SubmitComplaint = () => {
                   type="button" 
                   onClick={applyAiSuggestions}
                   className="btn btn-sm"
-                  style={{ 
-                    background: isAiApplied ? 'var(--success)' : 'linear-gradient(135deg, #06b6d4, #3b82f6)', 
-                    color: 'white',
-                    fontWeight: 700
-                  }}
+                  style={{ background: isAiApplied ? 'var(--success)' : 'linear-gradient(135deg, #06b6d4, #3b82f6)', color: 'white', fontWeight: 700 }}
                 >
-                  {isAiApplied ? '✓ AI Settings Applied' : '✨ Apply AI Category & Priority'}
+                  {isAiApplied ? '✓ AI Settings Applied' : '✨ Apply Suggestions'}
                 </button>
               </div>
             </div>
@@ -326,7 +434,7 @@ const SubmitComplaint = () => {
                 <textarea
                   className="form-control"
                   rows="4"
-                  placeholder="Describe the issue in detail. AI will check for existing duplicates in the campus database..."
+                  placeholder="Detailed description of the issue..."
                   required
                   value={formData.description}
                   onChange={(e) => setFormData({ ...formData, description: e.target.value })}
@@ -358,26 +466,6 @@ const SubmitComplaint = () => {
                   value={formData.locationDescription}
                   onChange={(e) => setFormData({ ...formData, locationDescription: e.target.value })}
                 />
-              </div>
-
-              {/* Image Upload */}
-              <div className="form-group">
-                <label className="form-label">📷 Attach Issue Photo (Optional)</label>
-                <input
-                  type="file"
-                  className="form-control"
-                  accept="image/*"
-                  onChange={handleImageChange}
-                />
-                {imagePreview && (
-                  <div style={{ marginTop: '0.75rem' }}>
-                    <img 
-                      src={imagePreview} 
-                      alt="Preview" 
-                      style={{ maxHeight: '160px', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} 
-                    />
-                  </div>
-                )}
               </div>
 
               <div style={{ marginTop: '2rem' }}>

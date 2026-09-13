@@ -4,8 +4,8 @@ const bcrypt = require('bcrypt');
 const auth = require('../middleware/authMiddleware');
 const User = require('../models/User');
 const Complaint = require('../models/Complaint');
+const aiService = require('../services/aiService');
 
-// Admin role check middleware
 const adminOnly = async (req, res, next) => {
   try {
     const user = await User.findById(req.user.id);
@@ -17,6 +17,20 @@ const adminOnly = async (req, res, next) => {
     res.status(500).json({ msg: 'Auth validation error' });
   }
 };
+
+// @route   GET api/admin/predictive
+// @desc    AI Predictive Maintenance & Chronic Recurring Hotspots
+// @access  Admin only
+router.get('/predictive', [auth, adminOnly], async (req, res) => {
+  try {
+    const allComplaints = await Complaint.find().sort({ createdAt: -1 });
+    const predictiveReport = aiService.analyzeRecurringAndPredictive(allComplaints);
+    res.json(predictiveReport);
+  } catch (err) {
+    console.error('Predictive API error:', err.message);
+    res.status(500).json({ msg: 'Failed to generate predictive maintenance report' });
+  }
+});
 
 // @route   GET api/admin/analytics
 // @desc    Get comprehensive KPI dashboard metrics & charts
@@ -30,25 +44,21 @@ router.get('/analytics', [auth, adminOnly], async (req, res) => {
     const resolved = await Complaint.countDocuments({ status: 'Resolved' });
     const closed = await Complaint.countDocuments({ status: 'Closed' });
 
-    // Priorities
     const lowPriority = await Complaint.countDocuments({ priority: 'Low' });
     const mediumPriority = await Complaint.countDocuments({ priority: 'Medium' });
     const highPriority = await Complaint.countDocuments({ priority: 'High' });
     const emergencyPriority = await Complaint.countDocuments({ priority: 'Emergency' });
 
-    // Category Breakdown Aggregation
     const categoryStats = await Complaint.aggregate([
       { $group: { _id: '$category', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]);
 
-    // Department Breakdown Aggregation
     const departmentStats = await Complaint.aggregate([
       { $group: { _id: '$department', count: { $sum: 1 } } },
       { $sort: { count: -1 } }
     ]);
 
-    // Average Feedback Rating
     const feedbackStats = await Complaint.aggregate([
       { $match: { 'feedback.rating': { $exists: true, $ne: null } } },
       {
@@ -60,9 +70,9 @@ router.get('/analytics', [auth, adminOnly], async (req, res) => {
       }
     ]);
 
-    // Worker Performance
     const workerCount = await User.countDocuments({ role: 'worker' });
     const studentCount = await User.countDocuments({ role: 'student' });
+    const aiCategorizedCount = await Complaint.countDocuments({ isAiCategorized: true });
 
     res.json({
       summary: {
@@ -75,6 +85,8 @@ router.get('/analytics', [auth, adminOnly], async (req, res) => {
         activeRate: totalComplaints ? Math.round(((closed + resolved) / totalComplaints) * 100) : 0,
         workerCount,
         studentCount,
+        aiCategorizedCount,
+        aiAdoptionRate: totalComplaints ? Math.round((aiCategorizedCount / totalComplaints) * 100) : 0,
         avgRating: feedbackStats.length > 0 ? Number(feedbackStats[0].avgRating.toFixed(1)) : 0,
         totalFeedbacks: feedbackStats.length > 0 ? feedbackStats[0].totalFeedbacks : 0,
       },
@@ -100,7 +112,6 @@ router.get('/workers', [auth, adminOnly], async (req, res) => {
   try {
     const workers = await User.find({ role: 'worker' }).select('-password').sort({ name: 1 });
 
-    // Calculate active task count for each worker
     const workersWithLoad = await Promise.all(
       workers.map(async (w) => {
         const activeTasks = await Complaint.countDocuments({
@@ -170,7 +181,7 @@ router.post('/workers', [auth, adminOnly], async (req, res) => {
 });
 
 // @route   GET api/admin/users
-// @desc    Get all users across roles (Student, Staff, Worker, Admin)
+// @desc    Get all users
 // @access  Admin only
 router.get('/users', [auth, adminOnly], async (req, res) => {
   try {

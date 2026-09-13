@@ -7,6 +7,26 @@ const aiService = require('../services/aiService');
 const Complaint = require('../models/Complaint');
 const User = require('../models/User');
 
+// @route   POST api/complaints/ai-vision
+// @desc    AI Computer Vision Image Scanner: Analyzes uploaded photo to detect defect & auto-populate form
+// @access  Private
+router.post('/ai-vision', [auth, upload.single('image')], async (req, res) => {
+  try {
+    const file = req.file;
+    const { customHint } = req.body;
+
+    const visionResult = aiService.analyzeImageVision(file, customHint || '');
+
+    res.json({
+      imageUrl: file ? file.path : '',
+      visionResult,
+    });
+  } catch (err) {
+    console.error('AI Vision error:', err.message);
+    res.status(500).json({ msg: 'AI Vision analysis failed' });
+  }
+});
+
 // @route   POST api/complaints/ai-analyze
 // @desc    Real-time AI analysis for category auto-detection & duplicate check
 // @access  Private
@@ -14,10 +34,8 @@ router.post('/ai-analyze', auth, async (req, res) => {
   try {
     const { title, description, department, category } = req.body;
 
-    // 1. AI Category & Priority Detection
     const aiClassification = aiService.detectCategoryAndPriority(title, description);
 
-    // 2. AI Duplicate Detection against Active Complaints (Pending, Assigned, In Progress)
     const activeComplaints = await Complaint.find({
       status: { $in: ['Pending', 'Assigned', 'In Progress'] }
     })
@@ -62,13 +80,23 @@ router.post('/', [auth, upload.single('image')], async (req, res) => {
       lng, 
       locationDescription,
       isAiCategorized,
-      aiConfidence 
+      aiConfidence,
+      detectedDefect,
     } = req.body;
     
     let imageUrl = '';
     if (req.file) {
       imageUrl = req.file.path;
     }
+
+    // Check for Recurring Issue in this location & category
+    const pastLocationComplaints = await Complaint.countDocuments({
+      department: department || 'General Campus',
+      category: category,
+      createdAt: { $gte: new Date(Date.now() - 30 * 24 * 60 * 60 * 1000) } // past 30 days
+    });
+
+    const isRecurring = pastLocationComplaints >= 1; // 2nd or more occurrence
 
     const newComplaint = new Complaint({
       user: req.user.id,
@@ -85,11 +113,15 @@ router.post('/', [auth, upload.single('image')], async (req, res) => {
       imageUrl,
       isAiCategorized: isAiCategorized === 'true' || isAiCategorized === true,
       aiConfidence: parseFloat(aiConfidence) || 0,
-      upvotes: [req.user.id], // Creator automatically upvotes their ticket
+      upvotes: [req.user.id],
+      isRecurring,
+      recurringCount: pastLocationComplaints + 1,
       timeline: [
         {
           status: 'Pending',
-          message: 'Complaint lodged by ' + (req.user.name || 'User') + (isAiCategorized ? ' (🤖 Categorized by Campus AI)' : ''),
+          message: 'Complaint lodged by ' + (req.user.name || 'User') + 
+            (isAiCategorized ? ' (🤖 Categorized by Campus AI)' : '') +
+            (isRecurring ? ` [🔁 Recurring Hotspot: ${pastLocationComplaints + 1}th occurrence in 30 days]` : ''),
           actionBy: req.user.id,
           timestamp: new Date(),
         }
@@ -105,7 +137,7 @@ router.post('/', [auth, upload.single('image')], async (req, res) => {
 });
 
 // @route   POST api/complaints/:id/upvote
-// @desc    Upvote / Add voice to an existing active issue (Duplicate avoidance)
+// @desc    Upvote / Add voice to an existing active issue
 // @access  Private
 router.post('/:id/upvote', auth, async (req, res) => {
   try {
@@ -114,16 +146,13 @@ router.post('/:id/upvote', auth, async (req, res) => {
       return res.status(404).json({ msg: 'Complaint not found' });
     }
 
-    // Check if user already upvoted
     const hasUpvoted = complaint.upvotes.some(uid => uid.toString() === req.user.id);
 
     if (hasUpvoted) {
-      // Remove upvote (toggle)
       complaint.upvotes = complaint.upvotes.filter(uid => uid.toString() !== req.user.id);
     } else {
       complaint.upvotes.push(req.user.id);
 
-      // If upvotes > 3, auto-boost priority to High/Emergency
       if (complaint.upvotes.length >= 4 && complaint.priority === 'Medium') {
         complaint.priority = 'High';
         complaint.timeline.push({
@@ -137,7 +166,7 @@ router.post('/:id/upvote', auth, async (req, res) => {
 
     await complaint.save();
     res.json({
-      msg: hasUpvoted ? 'Upvote removed' : 'Upvoted successfully! Impact recorded.',
+      msg: hasUpvoted ? 'Upvote removed' : 'Upvoted successfully!',
       upvotesCount: complaint.upvotes.length,
       hasUpvoted: !hasUpvoted,
       priority: complaint.priority
@@ -159,7 +188,6 @@ router.get('/', auth, async (req, res) => {
     let query = {};
 
     if (user.role === 'student') {
-      // If student passes ?mine=true or default
       query.user = req.user.id;
     } else if (user.role === 'worker') {
       query.assignedTo = req.user.id;
@@ -267,7 +295,7 @@ router.put('/:id/assign', auth, async (req, res) => {
 });
 
 // @route   PUT api/complaints/:id/status
-// @desc    Worker updates status (e.g. In Progress, or Resolved with proof photo)
+// @desc    Worker updates status
 // @access  Private (Worker)
 router.put('/:id/status', [auth, upload.single('resolutionImage')], async (req, res) => {
   try {
@@ -373,7 +401,7 @@ router.put('/:id/verify', auth, async (req, res) => {
 
 // @route   POST api/complaints/:id/feedback
 // @desc    Student gives rating and review on closed complaint
-// @access  Private (Complaint Owner)
+// @access  Private
 router.post('/:id/feedback', auth, async (req, res) => {
   try {
     const { rating, comment } = req.body;
