@@ -121,12 +121,15 @@ const AdminDashboard = () => {
         {/* Command Center Header */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
               <h1 style={{ fontSize: '1.85rem', fontWeight: 800 }}>👨‍💼 Super Admin Command Center</h1>
               <span className="brand-badge" style={{ background: '#ef4444' }}>Full Access</span>
+              <span className="brand-badge" style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)' }}>
+                ✨ AI Insights Active
+              </span>
             </div>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-              Campus Maintenance Oversight, Staff Allocations & Redressal Monitoring
+              Campus Maintenance Oversight, Staff Allocations & AI Redressal Monitoring
             </p>
           </div>
 
@@ -250,6 +253,7 @@ const AdminDashboard = () => {
                   <th>Ticket / Title</th>
                   <th>Department & Location</th>
                   <th>Category</th>
+                  <th>Impact / Votes</th>
                   <th>Priority</th>
                   <th>Status</th>
                   <th>Assigned Technician</th>
@@ -259,7 +263,7 @@ const AdminDashboard = () => {
               <tbody>
                 {complaints.length === 0 ? (
                   <tr>
-                    <td colSpan="7" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+                    <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
                       No complaints match the selected filter criteria.
                     </td>
                   </tr>
@@ -267,7 +271,12 @@ const AdminDashboard = () => {
                   complaints.map((c) => (
                     <tr key={c._id}>
                       <td style={{ maxWidth: '240px' }}>
-                        <div style={{ fontWeight: 700, color: '#fff', marginBottom: '0.2rem' }}>{c.title}</div>
+                        <div style={{ fontWeight: 700, color: '#fff', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span>{c.title}</span>
+                          {c.isAiCategorized && (
+                            <span title="Classified by AI" style={{ fontSize: '0.75rem', cursor: 'help' }}>🤖</span>
+                          )}
+                        </div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)' }}>
                           Lodged by: {c.user?.name || 'Student'} • {new Date(c.createdAt).toLocaleDateString()}
                         </div>
@@ -280,6 +289,19 @@ const AdminDashboard = () => {
 
                       <td>
                         <span style={{ fontSize: '0.85rem' }}>{c.category}</span>
+                      </td>
+
+                      <td>
+                        <span style={{ 
+                          fontSize: '0.8rem', 
+                          fontWeight: 700, 
+                          color: (c.upvotes?.length || 1) > 2 ? '#fca5a5' : '#93c5fd',
+                          background: (c.upvotes?.length || 1) > 2 ? 'rgba(239,68,68,0.15)' : 'rgba(59,130,246,0.15)',
+                          padding: '0.25rem 0.55rem',
+                          borderRadius: 'var(--radius-full)'
+                        }}>
+                          👍 {c.upvotes?.length || 1} {c.upvotes?.length > 1 ? 'Impacted' : 'Vote'}
+                        </span>
                       </td>
 
                       <td>

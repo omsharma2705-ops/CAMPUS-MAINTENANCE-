@@ -15,7 +15,7 @@ const StudentDashboard = () => {
   const [activeFilter, setActiveFilter] = useState('All');
 
   // Feedback Modal State
-  const [feedbackModal, setFeedbackModal] = useState(null); // complaint object
+  const [feedbackModal, setFeedbackModal] = useState(null);
   const [feedbackForm, setFeedbackForm] = useState({ rating: 5, comment: '' });
   const [submittingFeedback, setSubmittingFeedback] = useState(false);
 
@@ -32,6 +32,15 @@ const StudentDashboard = () => {
       console.error(err);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleUpvote = async (complaintId) => {
+    try {
+      await axios.post(`${API_URL}/complaints/${complaintId}/upvote`);
+      fetchComplaints();
+    } catch (err) {
+      console.error(err);
     }
   };
 
@@ -59,7 +68,6 @@ const StudentDashboard = () => {
     }
   };
 
-  // Metrics
   const total = complaints.length;
   const activeCount = complaints.filter(c => ['Pending', 'Assigned', 'In Progress'].includes(c.status)).length;
   const resolvedCount = complaints.filter(c => ['Resolved', 'Closed'].includes(c.status)).length;
@@ -72,7 +80,12 @@ const StudentDashboard = () => {
         {/* Header Banner */}
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
-            <h1 style={{ fontSize: '1.85rem', fontWeight: 800 }}>Student & Staff Portal</h1>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+              <h1 style={{ fontSize: '1.85rem', fontWeight: 800 }}>Student & Staff Portal</h1>
+              <span className="brand-badge" style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)' }}>
+                ✨ AI Enabled
+              </span>
+            </div>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
               Welcome back, <strong>{user.name}</strong> • Department: {user.department || 'General'}
             </p>
@@ -137,110 +150,129 @@ const StudentDashboard = () => {
           </div>
         ) : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            {complaints.map((c) => (
-              <div key={c._id} className="glass-panel" style={{ padding: '1.75rem' }}>
-                
-                {/* Top header of card */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
-                  <div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-                      <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#fff' }}>{c.title}</h3>
-                      <PriorityBadge priority={c.priority} />
+            {complaints.map((c) => {
+              const hasUpvoted = c.upvotes?.includes(user?.id);
+              return (
+                <div key={c._id} className="glass-panel" style={{ padding: '1.75rem' }}>
+                  
+                  {/* Top Header */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                        <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#fff' }}>{c.title}</h3>
+                        <PriorityBadge priority={c.priority} />
+                        {c.isAiCategorized && (
+                          <span style={{ fontSize: '0.7rem', background: 'rgba(6, 182, 212, 0.15)', color: '#67e8f9', border: '1px solid rgba(6, 182, 212, 0.3)', padding: '0.2rem 0.5rem', borderRadius: 'var(--radius-full)', fontWeight: 700 }}>
+                            🤖 AI Classified
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        📁 <strong>{c.category}</strong> • 🏢 {c.department} • 📅 Lodged on {new Date(c.createdAt).toLocaleDateString()}
+                      </div>
                     </div>
-                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                      📁 <strong>{c.category}</strong> • 🏢 {c.department} • 📅 Lodged on {new Date(c.createdAt).toLocaleDateString()} at {new Date(c.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                    </div>
+                    <StatusBadge status={c.status} />
                   </div>
-                  <StatusBadge status={c.status} />
-                </div>
 
-                <p style={{ color: '#cbd5e1', fontSize: '0.925rem', lineHeight: '1.5', marginBottom: '1.25rem' }}>
-                  {c.description}
-                </p>
+                  <p style={{ color: '#cbd5e1', fontSize: '0.925rem', lineHeight: '1.5', marginBottom: '1.25rem' }}>
+                    {c.description}
+                  </p>
 
-                {/* Location & Landmark badge */}
-                <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255, 255, 255, 0.04)', padding: '0.4rem 0.8rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
-                  <span>📍 {c.location?.description || 'Campus Area'}</span>
-                  <span>(Lat: {c.location?.lat?.toFixed(3)}, Lng: {c.location?.lng?.toFixed(3)})</span>
-                </div>
+                  {/* Location & Upvotes Badge Bar */}
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap', marginBottom: '1.25rem' }}>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(255, 255, 255, 0.04)', padding: '0.4rem 0.8rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                      <span>📍 {c.location?.description || 'Campus Area'}</span>
+                      <span>(Lat: {c.location?.lat?.toFixed(3)}, Lng: {c.location?.lng?.toFixed(3)})</span>
+                    </div>
 
-                {/* Status Stepper Progress Timeline */}
-                <div style={{ padding: '0.5rem 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', margin: '0.5rem 0 1rem' }}>
-                  <StatusStepper currentStatus={c.status} />
-                </div>
+                    <button
+                      onClick={() => handleUpvote(c._id)}
+                      className={`btn btn-sm ${hasUpvoted ? 'btn-primary' : 'btn-outline'}`}
+                      style={{ fontSize: '0.78rem', padding: '0.3rem 0.75rem' }}
+                      title="Upvote if this issue impacts you"
+                    >
+                      👍 {c.upvotes?.length || 1} {c.upvotes?.length === 1 ? 'Voice' : 'Voices'}
+                    </button>
+                  </div>
 
-                {/* Technician info if assigned */}
-                {c.assignedTo && (
-                  <div style={{ background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1rem', fontSize: '0.85rem' }}>
-                    👨‍🔧 <strong>Assigned Technician:</strong> {c.assignedTo.name} ({c.assignedTo.department || 'Maintenance Staff'})
-                    {c.workerRemarks && (
-                      <div style={{ marginTop: '0.25rem', color: '#93c5fd' }}>
-                        💬 <em>Technician Note: "{c.workerRemarks}"</em>
+                  {/* Status Stepper Progress Timeline */}
+                  <div style={{ padding: '0.5rem 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', margin: '0.5rem 0 1rem' }}>
+                    <StatusStepper currentStatus={c.status} />
+                  </div>
+
+                  {/* Technician info if assigned */}
+                  {c.assignedTo && (
+                    <div style={{ background: 'rgba(59, 130, 246, 0.08)', border: '1px solid rgba(59, 130, 246, 0.2)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1rem', fontSize: '0.85rem' }}>
+                      👨‍🔧 <strong>Assigned Technician:</strong> {c.assignedTo.name} ({c.assignedTo.department || 'Maintenance Staff'})
+                      {c.workerRemarks && (
+                        <div style={{ marginTop: '0.25rem', color: '#93c5fd' }}>
+                          💬 <em>Technician Note: "{c.workerRemarks}"</em>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Photos Row */}
+                  <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
+                    {c.imageUrl && (
+                      <div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginBottom: '0.25rem' }}>📷 Issue Photo:</div>
+                        <a href={c.imageUrl} target="_blank" rel="noreferrer">
+                          <img 
+                            src={c.imageUrl} 
+                            alt="Initial complaint" 
+                            style={{ width: '120px', height: '80px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} 
+                          />
+                        </a>
+                      </div>
+                    )}
+                    {c.resolutionImageUrl && (
+                      <div>
+                        <div style={{ fontSize: '0.75rem', color: '#34d399', marginBottom: '0.25rem' }}>✅ Resolution Proof:</div>
+                        <a href={c.resolutionImageUrl} target="_blank" rel="noreferrer">
+                          <img 
+                            src={c.resolutionImageUrl} 
+                            alt="Resolution proof" 
+                            style={{ width: '120px', height: '80px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16, 185, 129, 0.4)' }} 
+                          />
+                        </a>
                       </div>
                     )}
                   </div>
-                )}
 
-                {/* Photos Row */}
-                <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', marginBottom: '1rem' }}>
-                  {c.imageUrl && (
+                  {/* Feedback Row */}
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
                     <div>
-                      <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginBottom: '0.25rem' }}>📷 Issue Photo:</div>
-                      <a href={c.imageUrl} target="_blank" rel="noreferrer">
-                        <img 
-                          src={c.imageUrl} 
-                          alt="Initial complaint" 
-                          style={{ width: '120px', height: '80px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }} 
-                        />
-                      </a>
+                      {c.feedback?.rating ? (
+                        <div style={{ fontSize: '0.85rem', color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                          <span>⭐ Your Feedback: {c.feedback.rating}/5 Stars</span>
+                          {c.feedback.comment && <span>— "{c.feedback.comment}"</span>}
+                        </div>
+                      ) : c.status === 'Closed' ? (
+                        <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                          Issue verified and closed. How was the service?
+                        </span>
+                      ) : null}
                     </div>
-                  )}
-                  {c.resolutionImageUrl && (
-                    <div>
-                      <div style={{ fontSize: '0.75rem', color: '#34d399', marginBottom: '0.25rem' }}>✅ Resolution Proof:</div>
-                      <a href={c.resolutionImageUrl} target="_blank" rel="noreferrer">
-                        <img 
-                          src={c.resolutionImageUrl} 
-                          alt="Resolution proof" 
-                          style={{ width: '120px', height: '80px', objectFit: 'cover', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16, 185, 129, 0.4)' }} 
-                        />
-                      </a>
-                    </div>
-                  )}
-                </div>
 
-                {/* Feedback Row */}
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
-                  <div>
-                    {c.feedback?.rating ? (
-                      <div style={{ fontSize: '0.85rem', color: '#34d399', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        <span>⭐ Your Feedback: {c.feedback.rating}/5 Stars</span>
-                        {c.feedback.comment && <span>— "{c.feedback.comment}"</span>}
-                      </div>
-                    ) : c.status === 'Closed' ? (
-                      <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                        Issue verified and closed. How was the service?
-                      </span>
-                    ) : null}
+                    {c.status === 'Closed' && (
+                      <button 
+                        onClick={() => handleOpenFeedback(c)}
+                        className="btn btn-outline btn-sm"
+                        style={{ color: '#fbbf24', borderColor: 'rgba(245, 158, 11, 0.4)' }}
+                      >
+                        {c.feedback?.rating ? '✏️ Update Feedback' : '⭐ Rate Resolution'}
+                      </button>
+                    )}
                   </div>
 
-                  {c.status === 'Closed' && (
-                    <button 
-                      onClick={() => handleOpenFeedback(c)}
-                      className="btn btn-outline btn-sm"
-                      style={{ color: '#fbbf24', borderColor: 'rgba(245, 158, 11, 0.4)' }}
-                    >
-                      {c.feedback?.rating ? '✏️ Update Feedback' : '⭐ Rate Resolution'}
-                    </button>
-                  )}
                 </div>
-
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
-        {/* Student Feedback Modal */}
+        {/* Feedback Modal */}
         {feedbackModal && (
           <div className="modal-overlay">
             <div className="modal-content">

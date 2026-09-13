@@ -69,7 +69,7 @@ const ComplaintSchema = new mongoose.Schema({
     description: { type: String, default: '' }
   },
   imageUrl: {
-    type: String, // Initial complaint photo
+    type: String,
     default: '',
   },
   assignedTo: {
@@ -78,7 +78,7 @@ const ComplaintSchema = new mongoose.Schema({
     default: null,
   },
   resolutionImageUrl: {
-    type: String, // Resolution proof photo uploaded by technician
+    type: String,
     default: '',
   },
   workerRemarks: {
@@ -94,6 +94,21 @@ const ComplaintSchema = new mongoose.Schema({
     comment: { type: String, default: '' },
     createdAt: { type: Date }
   },
+  // AI-Driven Fields
+  isAiCategorized: {
+    type: Boolean,
+    default: false,
+  },
+  aiConfidence: {
+    type: Number,
+    default: 0,
+  },
+  upvotes: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'user',
+    }
+  ],
   timeline: [TimelineEventSchema],
   resolvedAt: {
     type: Date,

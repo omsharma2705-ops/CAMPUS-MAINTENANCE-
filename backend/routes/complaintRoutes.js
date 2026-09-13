@@ -2,16 +2,68 @@ const express = require('express');
 const router = express.Router();
 const auth = require('../middleware/authMiddleware');
 const upload = require('../config/cloudinary');
+const aiService = require('../services/aiService');
 
 const Complaint = require('../models/Complaint');
 const User = require('../models/User');
 
+// @route   POST api/complaints/ai-analyze
+// @desc    Real-time AI analysis for category auto-detection & duplicate check
+// @access  Private
+router.post('/ai-analyze', auth, async (req, res) => {
+  try {
+    const { title, description, department, category } = req.body;
+
+    // 1. AI Category & Priority Detection
+    const aiClassification = aiService.detectCategoryAndPriority(title, description);
+
+    // 2. AI Duplicate Detection against Active Complaints (Pending, Assigned, In Progress)
+    const activeComplaints = await Complaint.find({
+      status: { $in: ['Pending', 'Assigned', 'In Progress'] }
+    })
+      .populate('user', ['name', 'department'])
+      .populate('assignedTo', ['name'])
+      .sort({ createdAt: -1 })
+      .limit(30);
+
+    const duplicateMatches = aiService.detectDuplicates(
+      {
+        title: title || '',
+        description: description || '',
+        category: category || aiClassification.category,
+        department: department || ''
+      },
+      activeComplaints
+    );
+
+    res.json({
+      aiClassification,
+      duplicateMatches,
+      hasDuplicates: duplicateMatches.length > 0
+    });
+  } catch (err) {
+    console.error('AI Analysis Error:', err.message);
+    res.status(500).json({ msg: 'AI analysis failed' });
+  }
+});
+
 // @route   POST api/complaints
 // @desc    Student/Staff creates a complaint
-// @access  Private (student/staff/admin)
+// @access  Private
 router.post('/', [auth, upload.single('image')], async (req, res) => {
   try {
-    const { title, description, category, priority, department, lat, lng, locationDescription } = req.body;
+    const { 
+      title, 
+      description, 
+      category, 
+      priority, 
+      department, 
+      lat, 
+      lng, 
+      locationDescription,
+      isAiCategorized,
+      aiConfidence 
+    } = req.body;
     
     let imageUrl = '';
     if (req.file) {
@@ -31,10 +83,13 @@ router.post('/', [auth, upload.single('image')], async (req, res) => {
         description: locationDescription || ''
       },
       imageUrl,
+      isAiCategorized: isAiCategorized === 'true' || isAiCategorized === true,
+      aiConfidence: parseFloat(aiConfidence) || 0,
+      upvotes: [req.user.id], // Creator automatically upvotes their ticket
       timeline: [
         {
           status: 'Pending',
-          message: 'Complaint lodged by ' + (req.user.name || 'User'),
+          message: 'Complaint lodged by ' + (req.user.name || 'User') + (isAiCategorized ? ' (🤖 Categorized by Campus AI)' : ''),
           actionBy: req.user.id,
           timestamp: new Date(),
         }
@@ -49,6 +104,50 @@ router.post('/', [auth, upload.single('image')], async (req, res) => {
   }
 });
 
+// @route   POST api/complaints/:id/upvote
+// @desc    Upvote / Add voice to an existing active issue (Duplicate avoidance)
+// @access  Private
+router.post('/:id/upvote', auth, async (req, res) => {
+  try {
+    let complaint = await Complaint.findById(req.params.id);
+    if (!complaint) {
+      return res.status(404).json({ msg: 'Complaint not found' });
+    }
+
+    // Check if user already upvoted
+    const hasUpvoted = complaint.upvotes.some(uid => uid.toString() === req.user.id);
+
+    if (hasUpvoted) {
+      // Remove upvote (toggle)
+      complaint.upvotes = complaint.upvotes.filter(uid => uid.toString() !== req.user.id);
+    } else {
+      complaint.upvotes.push(req.user.id);
+
+      // If upvotes > 3, auto-boost priority to High/Emergency
+      if (complaint.upvotes.length >= 4 && complaint.priority === 'Medium') {
+        complaint.priority = 'High';
+        complaint.timeline.push({
+          status: complaint.status,
+          message: `🔥 Priority auto-boosted to High due to community upvotes (${complaint.upvotes.length} students impacted).`,
+          actionBy: req.user.id,
+          timestamp: new Date(),
+        });
+      }
+    }
+
+    await complaint.save();
+    res.json({
+      msg: hasUpvoted ? 'Upvote removed' : 'Upvoted successfully! Impact recorded.',
+      upvotesCount: complaint.upvotes.length,
+      hasUpvoted: !hasUpvoted,
+      priority: complaint.priority
+    });
+  } catch (err) {
+    console.error('Upvote error:', err.message);
+    res.status(500).json({ msg: 'Failed to record upvote' });
+  }
+});
+
 // @route   GET api/complaints
 // @desc    Get complaints with multi-filter (Role-aware)
 // @access  Private
@@ -60,11 +159,11 @@ router.get('/', auth, async (req, res) => {
     let query = {};
 
     if (user.role === 'student') {
+      // If student passes ?mine=true or default
       query.user = req.user.id;
     } else if (user.role === 'worker') {
       query.assignedTo = req.user.id;
     }
-    // admin gets all complaints
 
     if (status && status !== 'All') {
       query.status = status;
@@ -168,7 +267,7 @@ router.put('/:id/assign', auth, async (req, res) => {
 });
 
 // @route   PUT api/complaints/:id/status
-// @desc    Worker updates status (e.g., 'In Progress', or 'Resolved' with resolution proof photo)
+// @desc    Worker updates status (e.g. In Progress, or Resolved with proof photo)
 // @access  Private (Worker)
 router.put('/:id/status', [auth, upload.single('resolutionImage')], async (req, res) => {
   try {
@@ -181,7 +280,6 @@ router.put('/:id/status', [auth, upload.single('resolutionImage')], async (req, 
 
     const { status, workerRemarks } = req.body;
 
-    // Worker authorization check
     if (user.role === 'worker' && complaint.assignedTo?.toString() !== req.user.id) {
       return res.status(403).json({ msg: 'You are not assigned to this complaint.' });
     }
@@ -224,7 +322,7 @@ router.put('/:id/status', [auth, upload.single('resolutionImage')], async (req, 
 });
 
 // @route   PUT api/complaints/:id/verify
-// @desc    Admin verifies resolution and closes the complaint (or reopens)
+// @desc    Admin verifies resolution and closes the complaint
 // @access  Admin only
 router.put('/:id/verify', auth, async (req, res) => {
   try {
@@ -254,7 +352,6 @@ router.put('/:id/verify', auth, async (req, res) => {
         timestamp: new Date(),
       });
     } else {
-      // Reopen back to In Progress
       complaint.status = 'In Progress';
       complaint.timeline.push({
         status: 'In Progress',
@@ -275,7 +372,7 @@ router.put('/:id/verify', auth, async (req, res) => {
 });
 
 // @route   POST api/complaints/:id/feedback
-// @desc    Student gives 1-5 star rating and review on closed complaint
+// @desc    Student gives rating and review on closed complaint
 // @access  Private (Complaint Owner)
 router.post('/:id/feedback', auth, async (req, res) => {
   try {
