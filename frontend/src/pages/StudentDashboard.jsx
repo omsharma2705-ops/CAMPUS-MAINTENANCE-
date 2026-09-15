@@ -6,6 +6,7 @@ import StatusBadge from '../components/StatusBadge';
 import PriorityBadge from '../components/PriorityBadge';
 import StatusStepper from '../components/StatusStepper';
 import SLATimer from '../components/SLATimer';
+import QRScannerModal from '../components/QRScannerModal';
 import axios from 'axios';
 
 const StudentDashboard = () => {
@@ -14,6 +15,7 @@ const StudentDashboard = () => {
   const [complaints, setComplaints] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeFilter, setActiveFilter] = useState('All');
+  const [showQrScanner, setShowQrScanner] = useState(false);
 
   // Feedback Modal State
   const [feedbackModal, setFeedbackModal] = useState(null);
@@ -93,10 +95,26 @@ const StudentDashboard = () => {
               Welcome, <strong>{user.name}</strong> • Department: {user.department || 'Campus Scholar'}
             </p>
           </div>
-          <Link to="/submit" className="btn btn-primary">
-            ➕ Lodge New Complaint
-          </Link>
+          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+            <button 
+              type="button" 
+              onClick={() => setShowQrScanner(true)}
+              className="btn btn-outline"
+              style={{ borderColor: 'rgba(59, 130, 246, 0.4)', color: '#93c5fd', display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <span>📷</span> Scan Room QR
+            </button>
+            <Link to="/submit" className="btn btn-primary">
+              ➕ Lodge New Complaint
+            </Link>
+          </div>
         </div>
+
+        {/* QR Scanner Modal */}
+        <QRScannerModal 
+          isOpen={showQrScanner} 
+          onClose={() => setShowQrScanner(false)} 
+        />
 
         {/* Stats Summary Cards */}
         <div className="grid-cols-4" style={{ marginBottom: '2rem' }}>

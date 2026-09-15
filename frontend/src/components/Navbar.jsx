@@ -1,12 +1,17 @@
-import React, { useContext } from 'react';
+import React, { useContext, useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import NotificationCenter from './NotificationCenter';
+import QRScannerModal from './QRScannerModal';
+import QRGeneratorModal from './QRGeneratorModal';
 
 const Navbar = () => {
   const { user, logout } = useContext(AuthContext);
   const navigate = useNavigate();
   const location = useLocation();
+
+  const [showQrScanner, setShowQrScanner] = useState(false);
+  const [showQrGenerator, setShowQrGenerator] = useState(false);
 
   if (!user) return null;
 
@@ -33,12 +38,23 @@ const Navbar = () => {
           </Link>
 
           {user.role === 'student' && (
-            <Link 
-              to="/submit" 
-              className={`nav-btn ${location.pathname === '/submit' ? 'active' : ''}`}
-            >
-              ➕ Raise Complaint
-            </Link>
+            <>
+              <Link 
+                to="/submit" 
+                className={`nav-btn ${location.pathname === '/submit' ? 'active' : ''}`}
+              >
+                ➕ Raise Complaint
+              </Link>
+              <button
+                type="button"
+                onClick={() => setShowQrScanner(true)}
+                className="nav-btn"
+                style={{ background: 'rgba(59, 130, 246, 0.15)', border: '1px solid rgba(59, 130, 246, 0.35)', color: '#93c5fd' }}
+                title="Scan Room QR Code"
+              >
+                📷 Scan Room QR
+              </button>
+            </>
           )}
 
           {user.role === 'admin' && (
@@ -61,11 +77,30 @@ const Navbar = () => {
               >
                 📈 Analytics & Reports
               </Link>
+              <button
+                type="button"
+                onClick={() => setShowQrGenerator(true)}
+                className="nav-btn"
+                style={{ background: 'rgba(99, 102, 241, 0.15)', border: '1px solid rgba(99, 102, 241, 0.35)', color: '#c7d2fe' }}
+                title="Generate Room QR Code Stickers"
+              >
+                📍 Room QR Stickers
+              </button>
             </>
           )}
 
           {/* Notification Center */}
           <NotificationCenter />
+
+          {/* Modals */}
+          <QRScannerModal 
+            isOpen={showQrScanner} 
+            onClose={() => setShowQrScanner(false)} 
+          />
+          <QRGeneratorModal 
+            isOpen={showQrGenerator} 
+            onClose={() => setShowQrGenerator(false)} 
+          />
 
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: '0.5rem', paddingLeft: '0.75rem', borderLeft: '1px solid var(--border)' }}>
             <div style={{ textAlign: 'right' }}>

@@ -5,6 +5,7 @@ import Navbar from '../components/Navbar';
 import StatusBadge from '../components/StatusBadge';
 import PriorityBadge from '../components/PriorityBadge';
 import SLATimer from '../components/SLATimer';
+import QRGeneratorModal from '../components/QRGeneratorModal';
 import axios from 'axios';
 
 const AdminDashboard = () => {
@@ -13,6 +14,7 @@ const AdminDashboard = () => {
   const [workers, setWorkers] = useState([]);
   const [analytics, setAnalytics] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [showQrGenerator, setShowQrGenerator] = useState(false);
 
   // Filter States
   const [filters, setFilters] = useState({
@@ -166,6 +168,14 @@ const AdminDashboard = () => {
           <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button 
               type="button" 
+              onClick={() => setShowQrGenerator(true)}
+              className="btn btn-primary"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'linear-gradient(135deg, #6366f1, #3b82f6)' }}
+            >
+              <span>📍</span> Generate Room QR Stickers
+            </button>
+            <button 
+              type="button" 
               onClick={handleExportCSV}
               className="btn btn-outline"
               style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
@@ -180,11 +190,17 @@ const AdminDashboard = () => {
             >
               <span>🖨️</span> Print / PDF Report
             </button>
-            <Link to="/stores" className="btn btn-primary">
+            <Link to="/stores" className="btn btn-outline">
               📦 Stores & Materials
             </Link>
           </div>
         </div>
+
+        {/* QR Code Generator Modal */}
+        <QRGeneratorModal 
+          isOpen={showQrGenerator} 
+          onClose={() => setShowQrGenerator(false)} 
+        />
 
         {/* Top KPI Summary Cards */}
         <div className="grid-cols-4" style={{ marginBottom: '2rem' }}>

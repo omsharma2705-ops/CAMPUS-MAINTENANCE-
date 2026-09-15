@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useContext, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
@@ -79,6 +79,45 @@ const SubmitComplaint = () => {
   const [duplicates, setDuplicates] = useState([]);
   const [showDuplicateModal, setShowDuplicateModal] = useState(false);
   const [upvotingId, setUpvotingId] = useState(null);
+
+  // QR Code Location Auto-Fill State
+  const [searchParams, setSearchParams] = useSearchParams();
+  const [qrLocationInfo, setQrLocationInfo] = useState(null);
+
+  // Read URL search params from scanned QR code
+  useEffect(() => {
+    const qBuilding = searchParams.get('building');
+    const qFloor = searchParams.get('floor');
+    const qRoom = searchParams.get('room');
+    const qCategory = searchParams.get('category');
+    const qLat = searchParams.get('lat');
+    const qLng = searchParams.get('lng');
+
+    if (qBuilding || qRoom) {
+      setFormData(prev => ({
+        ...prev,
+        building: qBuilding || prev.building,
+        floor: qFloor || prev.floor,
+        room: qRoom || prev.room,
+        category: qCategory || prev.category
+      }));
+
+      if (qLat && qLng) {
+        const parsedLat = parseFloat(qLat);
+        const parsedLng = parseFloat(qLng);
+        if (!isNaN(parsedLat) && !isNaN(parsedLng)) {
+          setPosition({ lat: parsedLat, lng: parsedLng });
+        }
+      }
+
+      setQrLocationInfo({
+        building: qBuilding,
+        floor: qFloor,
+        room: qRoom,
+        category: qCategory
+      });
+    }
+  }, [searchParams]);
 
   // Submission Result Modal
   const [submittedComplaint, setSubmittedComplaint] = useState(null);
@@ -275,6 +314,63 @@ const SubmitComplaint = () => {
           {error && (
             <div style={{ background: 'rgba(239, 68, 68, 0.15)', border: '1px solid rgba(239, 68, 68, 0.4)', color: '#fca5a5', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem' }}>
               ⚠️ {error}
+            </div>
+          )}
+
+          {/* QR Code Auto-Filled Location Banner */}
+          {qrLocationInfo && (
+            <div 
+              style={{
+                background: 'linear-gradient(135deg, rgba(37, 99, 235, 0.22), rgba(99, 102, 241, 0.22))',
+                border: '2px solid rgba(59, 130, 246, 0.65)',
+                borderRadius: 'var(--radius-md, 12px)',
+                padding: '1.1rem 1.35rem',
+                marginBottom: '1.75rem',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                flexWrap: 'wrap',
+                gap: '1rem',
+                boxShadow: '0 8px 32px rgba(37, 99, 235, 0.2)',
+                animation: 'fadeIn 0.4s ease-out'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem' }}>
+                <div style={{
+                  fontSize: '1.75rem',
+                  background: 'rgba(59, 130, 246, 0.25)',
+                  padding: '0.4rem 0.65rem',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(96, 165, 250, 0.4)'
+                }}>
+                  📍
+                </div>
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <strong style={{ color: '#93c5fd', fontSize: '1rem' }}>Location Verified via Room QR Code</strong>
+                    <span style={{ fontSize: '0.7rem', background: '#2563eb', color: '#fff', padding: '0.15rem 0.55rem', borderRadius: '999px', fontWeight: 700, letterSpacing: '0.5px' }}>
+                      ⚡ AUTO-FILLED
+                    </span>
+                  </div>
+                  <div style={{ color: '#e2e8f0', fontSize: '0.9rem', marginTop: '0.25rem' }}>
+                    <strong>{formData.building}</strong> • {formData.floor} • <span style={{ color: '#67e8f9', fontWeight: 800 }}>{formData.room || 'Entire Floor'}</span>
+                  </div>
+                  <div style={{ fontSize: '0.75rem', color: '#94a3b8', marginTop: '0.2rem' }}>
+                    ✓ Interactive Map GPS automatically targeted to this facility
+                  </div>
+                </div>
+              </div>
+              <button
+                type="button"
+                className="btn btn-sm btn-outline"
+                style={{ fontSize: '0.75rem', borderColor: 'rgba(148, 163, 184, 0.4)', color: '#cbd5e1' }}
+                onClick={() => {
+                  setQrLocationInfo(null);
+                  setSearchParams({});
+                }}
+              >
+                Reset / Change Location
+              </button>
             </div>
           )}
 
