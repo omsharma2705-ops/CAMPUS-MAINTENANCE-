@@ -8,6 +8,8 @@ const adminRoutes = require('./routes/adminRoutes');
 const storeRoutes = require('./routes/storeRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 
+const path = require('path');
+
 const app = express();
 
 // Connect Database
@@ -16,6 +18,7 @@ connectDB();
 // Init Middleware
 app.use(cors());
 app.use(express.json({ extended: false }));
+app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
 // Define Routes
 app.use('/api/auth', authRoutes);
@@ -35,6 +38,8 @@ app.get('/', (req, res) => res.json({
     '/api/notifications'
   ]
 }));
+
+app.get('/health', (req, res) => res.status(200).json({ status: 'ok', uptime: process.uptime() }));
 
 const PORT = process.env.PORT || 5000;
 

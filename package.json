@@ -4,6 +4,8 @@
   "description": "University Campus Maintenance Complaint & Redressal Platform",
   "private": true,
   "scripts": {
+    "start": "node backend/index.js",
+    "build": "cd backend && npm install",
     "qr": "python qr.py",
     "dev": "npm run dev --prefix frontend",
     "backend": "node backend/index.js",
