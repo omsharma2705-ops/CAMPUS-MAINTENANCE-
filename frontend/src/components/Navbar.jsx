@@ -1,4 +1,4 @@
-import React, { useContext, useState } from 'react';
+import React, { useContext, useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
 import NotificationCenter from './NotificationCenter';
@@ -12,6 +12,12 @@ const Navbar = () => {
 
   const [showQrScanner, setShowQrScanner] = useState(false);
   const [showQrGenerator, setShowQrGenerator] = useState(false);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+
+  // Auto-close mobile menu on route navigation
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
 
   if (!user) return null;
 
@@ -23,13 +29,28 @@ const Navbar = () => {
   return (
     <nav className="navbar">
       <div className="navbar-content">
+        {/* Brand Logo */}
         <Link to="/dashboard" className="brand-logo">
-          <span style={{ fontSize: '1.5rem' }}>🏛️</span>
+          <span style={{ fontSize: '1.4rem' }}>🏛️</span>
           <span>CampusFix</span>
           <span className="brand-badge">{user.role}</span>
         </Link>
 
-        <div className="nav-links">
+        {/* Mobile Right Controls: Notification + Hamburger */}
+        <div className="mobile-nav-actions mobile-only">
+          <NotificationCenter />
+          <button
+            type="button"
+            className="mobile-menu-toggle"
+            onClick={() => setMobileMenuOpen(prev => !prev)}
+            aria-label="Toggle navigation menu"
+          >
+            {mobileMenuOpen ? '✕' : '☰'}
+          </button>
+        </div>
+
+        {/* Desktop Navigation Links */}
+        <div className="nav-links desktop-only">
           <Link 
             to="/dashboard" 
             className={`nav-btn ${location.pathname === '/dashboard' ? 'active' : ''}`}
@@ -92,16 +113,7 @@ const Navbar = () => {
           {/* Notification Center */}
           <NotificationCenter />
 
-          {/* Modals */}
-          <QRScannerModal 
-            isOpen={showQrScanner} 
-            onClose={() => setShowQrScanner(false)} 
-          />
-          <QRGeneratorModal 
-            isOpen={showQrGenerator} 
-            onClose={() => setShowQrGenerator(false)} 
-          />
-
+          {/* User Profile & Logout */}
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: '0.5rem', paddingLeft: '0.75rem', borderLeft: '1px solid var(--border)' }}>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.35rem' }}>
@@ -122,6 +134,104 @@ const Navbar = () => {
           </div>
         </div>
       </div>
+
+      {/* Mobile Drawer Menu */}
+      {mobileMenuOpen && (
+        <div className="mobile-drawer-menu mobile-only">
+          {/* User Profile Badge Card */}
+          <div className="mobile-user-card">
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+              <div className="mobile-user-avatar">
+                {user.name?.charAt(0) || 'U'}
+              </div>
+              <div>
+                <div style={{ fontSize: '0.95rem', fontWeight: 800, color: '#fff' }}>
+                  {user.name}
+                </div>
+                <div style={{ fontSize: '0.75rem', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <span>{user.department || user.role}</span>
+                  {user.cardId && <span>• 🪪 {user.cardId}</span>}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Navigation Links List */}
+          <div className="mobile-links-list">
+            <Link 
+              to="/dashboard" 
+              className={`mobile-nav-link ${location.pathname === '/dashboard' ? 'active' : ''}`}
+            >
+              <span>📊</span> Dashboard
+            </Link>
+
+            {user.role === 'student' && (
+              <>
+                <Link 
+                  to="/submit" 
+                  className={`mobile-nav-link ${location.pathname === '/submit' ? 'active' : ''}`}
+                >
+                  <span>➕</span> Raise Complaint
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => { setShowQrScanner(true); setMobileMenuOpen(false); }}
+                  className="mobile-nav-link"
+                >
+                  <span>📷</span> Scan Room QR
+                </button>
+              </>
+            )}
+
+            {user.role === 'admin' && (
+              <>
+                <Link 
+                  to="/stores" 
+                  className={`mobile-nav-link ${location.pathname === '/stores' ? 'active' : ''}`}
+                >
+                  <span>📦</span> Stores & Inventory
+                </Link>
+                <Link 
+                  to="/admin/staff" 
+                  className={`mobile-nav-link ${location.pathname === '/admin/staff' ? 'active' : ''}`}
+                >
+                  <span>👨‍🔧</span> Maintenance Staff
+                </Link>
+                <Link 
+                  to="/admin/analytics" 
+                  className={`mobile-nav-link ${location.pathname === '/admin/analytics' ? 'active' : ''}`}
+                >
+                  <span>📈</span> Analytics & Reports
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => { setShowQrGenerator(true); setMobileMenuOpen(false); }}
+                  className="mobile-nav-link"
+                >
+                  <span>📍</span> Room QR Stickers
+                </button>
+              </>
+            )}
+
+            <button 
+              onClick={handleLogout} 
+              className="mobile-nav-link mobile-logout-btn"
+            >
+              <span>🚪</span> Logout Account
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Modals */}
+      <QRScannerModal 
+        isOpen={showQrScanner} 
+        onClose={() => setShowQrScanner(false)} 
+      />
+      <QRGeneratorModal 
+        isOpen={showQrGenerator} 
+        onClose={() => setShowQrGenerator(false)} 
+      />
     </nav>
   );
 };

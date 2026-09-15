@@ -211,7 +211,7 @@ const AdminDashboard = () => {
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+          <div className="mobile-btn-group" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
             <button 
               type="button" 
               onClick={() => setShowQrGenerator(true)}

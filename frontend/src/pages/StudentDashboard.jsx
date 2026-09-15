@@ -95,7 +95,7 @@ const StudentDashboard = () => {
               Welcome, <strong>{user.name}</strong> • Department: {user.department || 'Campus Scholar'}
             </p>
           </div>
-          <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
+          <div className="mobile-btn-group" style={{ display: 'flex', gap: '0.75rem', alignItems: 'center', flexWrap: 'wrap' }}>
             <button 
               type="button" 
               onClick={() => setShowQrScanner(true)}
