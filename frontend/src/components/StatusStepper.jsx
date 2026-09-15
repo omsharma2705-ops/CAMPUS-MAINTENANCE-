@@ -2,21 +2,31 @@ import React from 'react';
 
 const StatusStepper = ({ currentStatus }) => {
   const steps = [
-    { label: 'Lodged', status: 'Pending' },
+    { label: 'Registered', status: 'Registered' },
     { label: 'Assigned', status: 'Assigned' },
     { label: 'In Progress', status: 'In Progress' },
-    { label: 'Resolved', status: 'Resolved' },
-    { label: 'Verified & Closed', status: 'Closed' }
+    { label: 'Work Completed', status: 'Resolved' },
+    { label: 'Verified & Closed', status: 'Completed' }
   ];
 
   const getStatusIndex = (status) => {
     switch (status) {
-      case 'Pending': return 0;
-      case 'Assigned': return 1;
-      case 'In Progress': return 2;
-      case 'Resolved': return 3;
-      case 'Closed': return 4;
-      default: return 0;
+      case 'Registered':
+      case 'Pending': 
+        return 0;
+      case 'Assigned': 
+        return 1;
+      case 'In Progress':
+      case 'Awaiting Materials': 
+        return 2;
+      case 'Resolved':
+      case 'Work Completed': 
+        return 3;
+      case 'Completed':
+      case 'Closed': 
+        return 4;
+      default: 
+        return 0;
     }
   };
 
@@ -25,8 +35,8 @@ const StatusStepper = ({ currentStatus }) => {
   return (
     <div className="stepper">
       {steps.map((step, idx) => {
-        const isCompleted = idx < currentIndex || currentStatus === 'Closed';
-        const isActive = idx === currentIndex && currentStatus !== 'Closed';
+        const isCompleted = idx < currentIndex || ['Completed', 'Closed'].includes(currentStatus);
+        const isActive = idx === currentIndex && !['Completed', 'Closed'].includes(currentStatus);
 
         return (
           <div 

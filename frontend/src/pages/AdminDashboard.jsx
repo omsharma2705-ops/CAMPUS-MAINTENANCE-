@@ -4,6 +4,7 @@ import { AuthContext } from '../context/AuthContext';
 import Navbar from '../components/Navbar';
 import StatusBadge from '../components/StatusBadge';
 import PriorityBadge from '../components/PriorityBadge';
+import SLATimer from '../components/SLATimer';
 import axios from 'axios';
 
 const AdminDashboard = () => {
@@ -21,12 +22,12 @@ const AdminDashboard = () => {
     search: '',
   });
 
-  // Assign Modal
-  const [assignModal, setAssignModal] = useState(null);
+  // Work Order / Assign Modal
+  const [workOrderModal, setWorkOrderModal] = useState(null);
   const [selectedWorker, setSelectedWorker] = useState('');
   const [selectedPriority, setSelectedPriority] = useState('Medium');
-  const [adminRemarks, setAdminRemarks] = useState('');
-  const [submittingAssign, setSubmittingAssign] = useState(false);
+  const [workOrderInstructions, setWorkOrderInstructions] = useState('');
+  const [submittingWorkOrder, setSubmittingWorkOrder] = useState(false);
 
   // Verification Modal
   const [verifyModal, setVerifyModal] = useState(null);
@@ -63,30 +64,30 @@ const AdminDashboard = () => {
     }
   };
 
-  const openAssignModal = (complaint) => {
-    setAssignModal(complaint);
+  const openWorkOrderModal = (complaint) => {
+    setWorkOrderModal(complaint);
     setSelectedWorker(complaint.assignedTo?._id || (workers.length > 0 ? workers[0]._id : ''));
     setSelectedPriority(complaint.priority || 'Medium');
-    setAdminRemarks(complaint.adminRemarks || '');
+    setWorkOrderInstructions(complaint.workOrder?.instructions || complaint.adminRemarks || '');
   };
 
-  const handleSaveAssign = async (e) => {
+  const handleSaveWorkOrder = async (e) => {
     e.preventDefault();
-    if (!selectedWorker) return alert('Please select a technician.');
+    if (!selectedWorker) return alert('Please select an assigned tradesman.');
 
-    setSubmittingAssign(true);
+    setSubmittingWorkOrder(true);
     try {
-      await axios.put(`${API_URL}/complaints/${assignModal._id}/assign`, {
+      await axios.post(`${API_URL}/complaints/${workOrderModal._id}/work-order`, {
         workerId: selectedWorker,
         priority: selectedPriority,
-        adminRemarks,
+        instructions: workOrderInstructions,
       });
-      setAssignModal(null);
+      setWorkOrderModal(null);
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.msg || 'Failed to assign complaint');
+      alert(err.response?.data?.msg || 'Failed to create work order');
     } finally {
-      setSubmittingAssign(false);
+      setSubmittingWorkOrder(false);
     }
   };
 
@@ -105,10 +106,39 @@ const AdminDashboard = () => {
       setVerifyModal(null);
       fetchData();
     } catch (err) {
-      alert(err.response?.data?.msg || 'Failed to verify');
+      alert(err.response?.data?.msg || 'Failed to verify resolution');
     } finally {
       setSubmittingVerify(false);
     }
+  };
+
+  // Export Complaints to CSV / Excel
+  const handleExportCSV = async () => {
+    try {
+      const res = await axios.get(`${API_URL}/admin/export/complaints`);
+      const data = res.data;
+      if (!data || !data.length) return alert('No complaint records to export.');
+
+      const headers = Object.keys(data[0]).join(',');
+      const rows = data.map(row => 
+        Object.values(row).map(val => `"${String(val).replace(/"/g, '""')}"`).join(',')
+      ).join('\n');
+
+      const csvContent = 'data:text/csv;charset=utf-8,' + encodeURIComponent(headers + '\n' + rows);
+      const downloadLink = document.createElement('a');
+      downloadLink.setAttribute('href', csvContent);
+      downloadLink.setAttribute('download', `Campus_Maintenance_Report_${new Date().toISOString().slice(0,10)}.csv`);
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+    } catch (err) {
+      alert('Failed to export CSV report');
+    }
+  };
+
+  // Print PDF Audit Report
+  const handlePrintReport = () => {
+    window.print();
   };
 
   const summary = analytics?.summary || {};
@@ -122,231 +152,278 @@ const AdminDashboard = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem', flexWrap: 'wrap', gap: '1rem' }}>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-              <h1 style={{ fontSize: '1.85rem', fontWeight: 800 }}>👨‍💼 Super Admin Command Center</h1>
-              <span className="brand-badge" style={{ background: '#ef4444' }}>Full Access</span>
-              <span className="brand-badge" style={{ background: 'linear-gradient(135deg, #06b6d4, #3b82f6)' }}>
-                ✨ AI Insights Active
+              <h1 style={{ fontSize: '1.85rem', fontWeight: 800 }}>👨‍💼 Maintenance Operations & Command Center</h1>
+              <span className="brand-badge" style={{ background: '#ef4444' }}>Directorate Access</span>
+              <span className="brand-badge" style={{ background: 'linear-gradient(135deg, #10b981, #06b6d4)' }}>
+                SLA Engine Active
               </span>
             </div>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
-              Campus Maintenance Oversight, Staff Allocations & AI Redressal Monitoring
+              Work Order Routing, Tradesman Allocation, SLA Tracking, and Resolution Verification
             </p>
           </div>
 
-          <div style={{ display: 'flex', gap: '0.75rem' }}>
-            <Link to="/admin/staff" className="btn btn-outline">
-              👨‍🔧 Manage Staff ({workers.length})
-            </Link>
-            <Link to="/admin/analytics" className="btn btn-primary">
-              📈 Detailed Analytics
+          <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+            <button 
+              type="button" 
+              onClick={handleExportCSV}
+              className="btn btn-outline"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <span>📥</span> Export Excel / CSV
+            </button>
+            <button 
+              type="button" 
+              onClick={handlePrintReport}
+              className="btn btn-outline"
+              style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
+            >
+              <span>🖨️</span> Print / PDF Report
+            </button>
+            <Link to="/stores" className="btn btn-primary">
+              📦 Stores & Materials
             </Link>
           </div>
         </div>
 
-        {/* KPI Counter Cards */}
+        {/* Top KPI Summary Cards */}
         <div className="grid-cols-4" style={{ marginBottom: '2rem' }}>
           <div className="glass-panel kpi-card">
             <div className="kpi-title">Total Complaints</div>
-            <div className="kpi-value">{summary.totalComplaints || 0}</div>
-            <div className="kpi-desc">Across all campus zones</div>
+            <div className="kpi-value">{summary.totalComplaints || complaints.length}</div>
+            <div className="kpi-desc">Registered across all campus blocks</div>
           </div>
-          <div className="glass-panel kpi-card" style={{ borderColor: 'rgba(245, 158, 11, 0.3)' }}>
-            <div className="kpi-title" style={{ color: '#fbbf24' }}>Pending Assignment</div>
-            <div className="kpi-value" style={{ color: '#fbbf24' }}>{summary.pending || 0}</div>
-            <div className="kpi-desc">Needs worker allocation</div>
+          <div className="glass-panel kpi-card">
+            <div className="kpi-title">Pending / Registered Queue</div>
+            <div className="kpi-value" style={{ color: '#fbbf24' }}>
+              {summary.registered || complaints.filter(c => c.status === 'Registered').length}
+            </div>
+            <div className="kpi-desc">Awaiting manager review & work order</div>
           </div>
-          <div className="glass-panel kpi-card" style={{ borderColor: 'rgba(139, 92, 246, 0.3)' }}>
-            <div className="kpi-title" style={{ color: '#a78bfa' }}>Active Maintenance</div>
-            <div className="kpi-value" style={{ color: '#a78bfa' }}>{(summary.assigned || 0) + (summary.inProgress || 0)}</div>
-            <div className="kpi-desc">Assigned & in-progress</div>
+          <div className="glass-panel kpi-card">
+            <div className="kpi-title">Addressed / Completed</div>
+            <div className="kpi-value" style={{ color: '#34d399' }}>
+              {summary.addressed || complaints.filter(c => ['Completed', 'Closed', 'Resolved'].includes(c.status)).length}
+            </div>
+            <div className="kpi-desc">Verified resolutions ({summary.resolutionRate || 0}% rate)</div>
           </div>
-          <div className="glass-panel kpi-card" style={{ borderColor: 'rgba(16, 185, 129, 0.3)' }}>
-            <div className="kpi-title" style={{ color: '#34d399' }}>Verified & Closed</div>
-            <div className="kpi-value" style={{ color: '#34d399' }}>{summary.closed || 0}</div>
-            <div className="kpi-desc">⭐ Avg Satisfaction: {summary.avgRating || 5.0}/5.0</div>
+          <div className="glass-panel kpi-card" style={{ borderColor: summary.slaBreachedCount > 0 ? 'rgba(239, 68, 68, 0.4)' : 'var(--border)' }}>
+            <div className="kpi-title" style={{ color: summary.slaBreachedCount > 0 ? '#fca5a5' : '#6ee7b7' }}>
+              SLA Compliance
+            </div>
+            <div className="kpi-value" style={{ color: summary.slaComplianceRate >= 90 ? '#34d399' : '#fbbf24' }}>
+              {summary.slaComplianceRate !== undefined ? `${summary.slaComplianceRate}%` : '100%'}
+            </div>
+            <div className="kpi-desc">
+              {summary.slaBreachedCount > 0 ? `⚠️ ${summary.slaBreachedCount} tickets breached target SLA` : 'All work orders within SLA target'}
+            </div>
           </div>
         </div>
 
-        {/* Multi-Filter Search Bar */}
-        <div className="glass-panel" style={{ padding: '1.25rem', marginBottom: '1.5rem' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', alignItems: 'flex-end' }}>
-            
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">🔍 Search Keywords</label>
-              <input
-                type="text"
-                className="form-control"
-                placeholder="Title, description, hostel..."
-                value={filters.search}
-                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
-              />
-            </div>
-
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Status Filter</label>
-              <select
-                className="form-control"
+        {/* Master Table Filter Controls */}
+        <div className="glass-panel" style={{ padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
+          <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between' }}>
+            <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', flex: 1 }}>
+              <select 
+                className="form-control" 
+                style={{ width: 'auto', minWidth: '150px' }}
                 value={filters.status}
                 onChange={(e) => setFilters({ ...filters, status: e.target.value })}
               >
                 <option value="All">All Statuses</option>
-                <option value="Pending">⏳ Pending</option>
-                <option value="Assigned">👷 Assigned</option>
-                <option value="In Progress">⚡ In Progress</option>
-                <option value="Resolved">✅ Resolved (Needs Verify)</option>
-                <option value="Closed">🔒 Closed</option>
+                <option value="Registered">Registered (New)</option>
+                <option value="Assigned">Assigned (WO Issued)</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Awaiting Materials">Awaiting Materials</option>
+                <option value="Resolved">Resolved (Pending Verify)</option>
+                <option value="Completed">Completed & Closed</option>
               </select>
-            </div>
 
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Priority Filter</label>
-              <select
-                className="form-control"
+              <select 
+                className="form-control" 
+                style={{ width: 'auto', minWidth: '150px' }}
                 value={filters.priority}
                 onChange={(e) => setFilters({ ...filters, priority: e.target.value })}
               >
                 <option value="All">All Priorities</option>
-                <option value="Emergency">🚨 Emergency</option>
-                <option value="High">🟠 High</option>
-                <option value="Medium">🟡 Medium</option>
-                <option value="Low">🟢 Low</option>
+                <option value="Urgent">🚨 Urgent (2h SLA)</option>
+                <option value="High">🟠 High (6h SLA)</option>
+                <option value="Medium">🟡 Medium (24h SLA)</option>
+                <option value="Low">🟢 Low (48h SLA)</option>
               </select>
-            </div>
 
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Category</label>
-              <select
-                className="form-control"
+              <select 
+                className="form-control" 
+                style={{ width: 'auto', minWidth: '160px' }}
                 value={filters.category}
                 onChange={(e) => setFilters({ ...filters, category: e.target.value })}
               >
                 <option value="All">All Categories</option>
-                <option value="Water Leakage / Plumbing">🚰 Plumbing</option>
-                <option value="Electrical / Lighting">💡 Electrical</option>
-                <option value="Broken Furniture (Bench/Desk)">🪑 Furniture</option>
-                <option value="Washroom / Restroom Issue">🚽 Restroom</option>
-                <option value="Garbage / Cleanliness">🧹 Cleanliness</option>
-                <option value="AC / Fan Issue">❄️ AC / Fan</option>
-                <option value="IT / Lab Equipment">🖥️ IT Equipment</option>
-                <option value="Building / Structural Damage">🏢 Structural</option>
+                <option value="Electrical">⚡ Electrical</option>
+                <option value="Water">🚰 Water / Plumbing</option>
+                <option value="Sanitaryware">🚽 Sanitaryware</option>
+                <option value="Furniture">🪑 Furniture</option>
+                <option value="Doors">🚪 Doors</option>
+                <option value="IT">🖥️ IT</option>
+                <option value="HVAC">❄️ HVAC</option>
+                <option value="Civil / Structural">🏢 Civil / Structural</option>
+                <option value="Cleanliness">🧹 Cleanliness</option>
+                <option value="Other">🔧 Other</option>
               </select>
             </div>
 
+            <div style={{ minWidth: '260px' }}>
+              <input 
+                type="text" 
+                className="form-control" 
+                placeholder="Search CMP#, title, location, room..."
+                value={filters.search}
+                onChange={(e) => setFilters({ ...filters, search: e.target.value })}
+              />
+            </div>
           </div>
         </div>
 
-        {/* Complaints Master Data Table */}
-        <div className="glass-panel" style={{ padding: '0', overflow: 'hidden' }}>
-          <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <h3 style={{ fontSize: '1.15rem', fontWeight: 700 }}>
-              All Campus Complaints ({complaints.length})
-            </h3>
-            <span style={{ fontSize: '0.8rem', color: 'var(--text-sub)' }}>
-              Real-time synchronization
-            </span>
-          </div>
-
-          <div className="table-wrapper">
-            <table className="custom-table">
+        {/* Master Complaints Table */}
+        <div className="glass-panel" style={{ padding: '1.5rem' }}>
+          <div style={{ overflowX: 'auto' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
-                <tr>
-                  <th>Ticket / Title</th>
-                  <th>Department & Location</th>
-                  <th>Category</th>
-                  <th>Impact / Votes</th>
-                  <th>Priority</th>
-                  <th>Status</th>
-                  <th>Assigned Technician</th>
-                  <th>Actions</th>
+                <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-sub)', fontSize: '0.75rem', textTransform: 'uppercase' }}>
+                  <th style={{ padding: '0.75rem' }}>Complaint #</th>
+                  <th style={{ padding: '0.75rem' }}>Issue & Category</th>
+                  <th style={{ padding: '0.75rem' }}>Location (Block & Room)</th>
+                  <th style={{ padding: '0.75rem' }}>Priority & SLA</th>
+                  <th style={{ padding: '0.75rem' }}>Status</th>
+                  <th style={{ padding: '0.75rem' }}>Assigned Tradesman</th>
+                  <th style={{ padding: '0.75rem', textAlign: 'right' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {complaints.length === 0 ? (
                   <tr>
-                    <td colSpan="8" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                      No complaints match the selected filter criteria.
+                    <td colSpan="7" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                      No complaints matching criteria.
                     </td>
                   </tr>
                 ) : (
                   complaints.map((c) => (
-                    <tr key={c._id}>
-                      <td style={{ maxWidth: '240px' }}>
-                        <div style={{ fontWeight: 700, color: '#fff', marginBottom: '0.2rem', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                          <span>{c.title}</span>
+                    <tr key={c._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem' }}>
+                      
+                      {/* Complaint ID & Lodger */}
+                      <td style={{ padding: '1rem 0.75rem', verticalAlign: 'top' }}>
+                        <div style={{ fontWeight: 800, color: '#60a5fa', fontSize: '0.85rem' }}>
+                          {c.complaintNumber || `CMP-${c._id.slice(-6)}`}
+                        </div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-sub)', marginTop: '0.2rem' }}>
+                          {c.user?.name}
+                        </div>
+                        {c.user?.cardId && (
+                          <div style={{ fontSize: '0.65rem', color: '#93c5fd' }}>
+                            🪪 {c.user.cardId}
+                          </div>
+                        )}
+                      </td>
+
+                      {/* Title & Category */}
+                      <td style={{ padding: '1rem 0.75rem', verticalAlign: 'top', maxWidth: '280px' }}>
+                        <div style={{ fontWeight: 700, color: '#fff', marginBottom: '0.2rem' }}>
+                          {c.title}
+                        </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                          <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{c.category}</span>
                           {c.isAiCategorized && (
-                            <span title="Classified by AI" style={{ fontSize: '0.75rem', cursor: 'help' }}>🤖</span>
+                            <span style={{ fontSize: '0.65rem', background: 'rgba(6, 182, 212, 0.2)', color: '#67e8f9', padding: '0.1rem 0.35rem', borderRadius: '3px' }}>
+                              AI {c.aiConfidence}%
+                            </span>
                           )}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)' }}>
-                          Lodged by: {c.user?.name || 'Student'} • {new Date(c.createdAt).toLocaleDateString()}
+                      </td>
+
+                      {/* Location Details */}
+                      <td style={{ padding: '1rem 0.75rem', verticalAlign: 'top' }}>
+                        <div style={{ fontWeight: 600, color: '#fff' }}>
+                          🏢 {c.location?.building || c.department}
                         </div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)', marginTop: '0.15rem' }}>
+                          {c.location?.floor} • {c.location?.room}
+                        </div>
+                        {c.location?.description && (
+                          <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                            Near: {c.location.description}
+                          </div>
+                        )}
                       </td>
 
-                      <td>
-                        <div style={{ fontSize: '0.85rem', fontWeight: 600 }}>{c.department}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)' }}>📍 {c.location?.description || 'Campus'}</div>
+                      {/* Priority & Live SLA */}
+                      <td style={{ padding: '1rem 0.75rem', verticalAlign: 'top' }}>
+                        <div style={{ marginBottom: '0.35rem' }}>
+                          <PriorityBadge priority={c.priority} />
+                        </div>
+                        <SLATimer workOrder={c.workOrder} status={c.status} />
                       </td>
 
-                      <td>
-                        <span style={{ fontSize: '0.85rem' }}>{c.category}</span>
-                      </td>
-
-                      <td>
-                        <span style={{ 
-                          fontSize: '0.8rem', 
-                          fontWeight: 700, 
-                          color: (c.upvotes?.length || 1) > 2 ? '#fca5a5' : '#93c5fd',
-                          background: (c.upvotes?.length || 1) > 2 ? 'rgba(239,68,68,0.15)' : 'rgba(59,130,246,0.15)',
-                          padding: '0.25rem 0.55rem',
-                          borderRadius: 'var(--radius-full)'
-                        }}>
-                          👍 {c.upvotes?.length || 1} {c.upvotes?.length > 1 ? 'Impacted' : 'Vote'}
-                        </span>
-                      </td>
-
-                      <td>
-                        <PriorityBadge priority={c.priority} />
-                      </td>
-
-                      <td>
+                      {/* Status */}
+                      <td style={{ padding: '1rem 0.75rem', verticalAlign: 'top' }}>
                         <StatusBadge status={c.status} />
+                        {c.feedback?.rating && (
+                          <div style={{ fontSize: '0.75rem', color: '#fbbf24', marginTop: '0.35rem' }}>
+                            {c.feedback.rating} ⭐ Rating
+                          </div>
+                        )}
                       </td>
 
-                      <td>
+                      {/* Assigned Tradesman */}
+                      <td style={{ padding: '1rem 0.75rem', verticalAlign: 'top' }}>
                         {c.assignedTo ? (
                           <div>
-                            <div style={{ fontSize: '0.85rem', fontWeight: 600, color: '#93c5fd' }}>
-                              👨‍🔧 {c.assignedTo.name}
+                            <div style={{ fontWeight: 600, color: '#fff' }}>
+                              {c.assignedTo.name}
                             </div>
-                            <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)' }}>
-                              {c.assignedTo.department || 'Staff'}
+                            <div style={{ fontSize: '0.72rem', color: '#38bdf8' }}>
+                              ⚡ {c.assignedTo.trade || c.assignedTo.department}
                             </div>
+                            {c.workOrder?.workOrderNumber && (
+                              <div style={{ fontSize: '0.65rem', color: 'var(--text-sub)', marginTop: '0.15rem' }}>
+                                WO: {c.workOrder.workOrderNumber}
+                              </div>
+                            )}
                           </div>
                         ) : (
-                          <span style={{ color: '#fbbf24', fontSize: '0.8rem', fontStyle: 'italic' }}>
+                          <span style={{ fontSize: '0.78rem', color: '#f87171', fontStyle: 'italic' }}>
                             Unassigned
                           </span>
                         )}
                       </td>
 
-                      <td>
-                        <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
-                          <button
-                            onClick={() => openAssignModal(c)}
-                            className="btn btn-outline btn-sm"
-                            title="Assign or Change Technician"
-                          >
-                            👨‍🔧 {c.assignedTo ? 'Reassign' : 'Assign'}
-                          </button>
+                      {/* Actions */}
+                      <td style={{ padding: '1rem 0.75rem', verticalAlign: 'top', textAlign: 'right' }}>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'flex-end' }}>
+                          {['Registered', 'Pending', 'Assigned'].includes(c.status) && (
+                            <button 
+                              type="button" 
+                              className="btn btn-sm btn-primary"
+                              onClick={() => openWorkOrderModal(c)}
+                            >
+                              {c.assignedTo ? 'Modify Work Order' : '📝 Create Work Order'}
+                            </button>
+                          )}
 
                           {c.status === 'Resolved' && (
-                            <button
+                            <button 
+                              type="button" 
+                              className="btn btn-sm btn-primary"
+                              style={{ background: 'linear-gradient(135deg, #10b981, #06b6d4)' }}
                               onClick={() => openVerifyModal(c)}
-                              className="btn btn-success btn-sm"
-                              title="Verify resolution proof & close"
                             >
-                              🔍 Verify Proof
+                              🔍 Verify & Complete
                             </button>
+                          )}
+
+                          {c.status === 'Completed' && (
+                            <span style={{ fontSize: '0.75rem', color: '#34d399', fontWeight: 600 }}>
+                              ✓ Verified & Closed
+                            </span>
                           )}
                         </div>
                       </td>
@@ -358,74 +435,92 @@ const AdminDashboard = () => {
           </div>
         </div>
 
-        {/* Worker Assignment Modal */}
-        {assignModal && (
+        {/* REVIEW & CREATE WORK ORDER MODAL */}
+        {workOrderModal && (
           <div className="modal-overlay">
-            <div className="modal-content">
-              <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: '0.5rem' }}>
-                👨‍🔧 Assign Technician & Set Priority
-              </h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
-                For Issue: <strong>{assignModal.title}</strong> ({assignModal.category})
-              </p>
+            <div className="modal-content" style={{ maxWidth: '600px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3 style={{ fontSize: '1.3rem', fontWeight: 800 }}>
+                  📝 Issue Maintenance Work Order
+                </h3>
+                <span className="badge badge-p-emergency">
+                  Complaint #{workOrderModal.complaintNumber}
+                </span>
+              </div>
 
-              <form onSubmit={handleSaveAssign}>
+              <div style={{ background: 'rgba(255,255,255,0.04)', borderRadius: 'var(--radius-sm)', padding: '1rem', marginBottom: '1.25rem' }}>
+                <div style={{ fontWeight: 700, color: '#fff', fontSize: '0.95rem' }}>
+                  {workOrderModal.title}
+                </div>
+                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.35rem 0' }}>
+                  {workOrderModal.description}
+                </div>
+                <div style={{ fontSize: '0.78rem', color: '#93c5fd' }}>
+                  📍 {workOrderModal.location?.building} • Floor: {workOrderModal.location?.floor} • Room: {workOrderModal.location?.room}
+                </div>
+              </div>
+
+              <form onSubmit={handleSaveWorkOrder}>
+                
+                {/* Tradesman Specialization Selector */}
                 <div className="form-group">
-                  <label className="form-label">Select Maintenance Technician *</label>
+                  <label className="form-label">Assign Qualified Tradesman *</label>
                   <select
                     className="form-control"
                     value={selectedWorker}
                     onChange={(e) => setSelectedWorker(e.target.value)}
                     required
                   >
-                    <option value="">-- Choose a Technician --</option>
+                    <option value="">Select Tradesman...</option>
                     {workers.map((w) => (
                       <option key={w._id} value={w._id}>
-                        {w.name} — {w.department} ({w.activeTasks} active tasks)
+                        {w.name} — Trade: {w.trade || w.department} ({w.activeTasks} active tasks)
                       </option>
                     ))}
                   </select>
                 </div>
 
+                {/* Priority & SLA Timer Selection */}
                 <div className="form-group">
-                  <label className="form-label">Set Priority Level</label>
+                  <label className="form-label">SLA Turnaround Priority *</label>
                   <select
                     className="form-control"
                     value={selectedPriority}
                     onChange={(e) => setSelectedPriority(e.target.value)}
                   >
-                    <option value="Low">🟢 Low</option>
-                    <option value="Medium">🟡 Medium</option>
-                    <option value="High">🟠 High</option>
-                    <option value="Emergency">🚨 Emergency</option>
+                    <option value="Urgent">🚨 Urgent (2 Hours Target SLA)</option>
+                    <option value="High">🟠 High (6 Hours Target SLA)</option>
+                    <option value="Medium">🟡 Medium (24 Hours Target SLA)</option>
+                    <option value="Low">🟢 Low (48 Hours Target SLA)</option>
                   </select>
                 </div>
 
+                {/* Specific Manager Instructions */}
                 <div className="form-group">
-                  <label className="form-label">Admin Instructions / Directives for Staff</label>
+                  <label className="form-label">Manager Repair Instructions / Notes</label>
                   <textarea
                     className="form-control"
                     rows="3"
-                    placeholder="e.g., Please carry spare 25mm PVC pipe fittings. Urgent fix."
-                    value={adminRemarks}
-                    onChange={(e) => setAdminRemarks(e.target.value)}
+                    placeholder="e.g. Inspect main riser valve before cutting pipes. Wear protective gear."
+                    value={workOrderInstructions}
+                    onChange={(e) => setWorkOrderInstructions(e.target.value)}
                   ></textarea>
                 </div>
 
-                <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem', marginTop: '1.5rem' }}>
                   <button 
                     type="button" 
-                    className="btn btn-outline" 
-                    onClick={() => setAssignModal(null)}
+                    className="btn btn-outline"
+                    onClick={() => setWorkOrderModal(null)}
                   >
                     Cancel
                   </button>
                   <button 
                     type="submit" 
                     className="btn btn-primary"
-                    disabled={submittingAssign}
+                    disabled={submittingWorkOrder}
                   >
-                    {submittingAssign ? 'Assigning...' : 'Confirm Assignment'}
+                    {submittingWorkOrder ? 'Issuing Work Order...' : '🚀 Issue Work Order & Start SLA Timer'}
                   </button>
                 </div>
               </form>
@@ -433,100 +528,117 @@ const AdminDashboard = () => {
           </div>
         )}
 
-        {/* Side-by-Side Resolution Verification Modal */}
+        {/* SIDE-BY-SIDE VERIFY RESOLUTION MODAL */}
         {verifyModal && (
           <div className="modal-overlay">
-            <div className="modal-content" style={{ maxWidth: '750px' }}>
-              <h3 style={{ fontSize: '1.3rem', fontWeight: 800, marginBottom: '0.5rem' }}>
-                🔍 Verify Redressal Proof & Close Ticket
-              </h3>
-              <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>
-                Issue: <strong>{verifyModal.title}</strong>
+            <div className="modal-content" style={{ maxWidth: '780px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <h3 style={{ fontSize: '1.3rem', fontWeight: 800 }}>
+                  🔍 Side-by-Side Resolution Verification
+                </h3>
+                <span className="badge" style={{ background: 'rgba(16, 185, 129, 0.2)', color: '#6ee7b7' }}>
+                  Work Order #{verifyModal.workOrder?.workOrderNumber || 'N/A'}
+                </span>
+              </div>
+
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+                Inspect before & after repair photos. Approving will mark the ticket as Completed and dispatch notification to complainant.
               </p>
 
-              {/* Side by Side Image Comparison */}
-              <div className="grid-cols-2" style={{ gap: '1rem', marginBottom: '1.5rem' }}>
-                <div style={{ background: 'rgba(0,0,0,0.3)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', marginBottom: '0.5rem' }}>
-                    📷 1. Initial Issue Photo
+              {/* Side by Side Photos */}
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+                
+                {/* Before Photo */}
+                <div style={{ background: 'rgba(0,0,0,0.4)', borderRadius: 'var(--radius-sm)', padding: '0.75rem', border: '1px solid var(--border)' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#fca5a5', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+                    📸 1. Initial Reported Defect Photo
                   </div>
-                  {verifyModal.imageUrl ? (
-                    <a href={verifyModal.imageUrl} target="_blank" rel="noreferrer">
-                      <img 
-                        src={verifyModal.imageUrl} 
-                        alt="Initial" 
-                        style={{ width: '100%', height: '180px', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} 
-                      />
-                    </a>
+                  {verifyModal.beforeImageUrl || verifyModal.imageUrl ? (
+                    <img 
+                      src={verifyModal.beforeImageUrl || verifyModal.imageUrl} 
+                      alt="Before Repair" 
+                      style={{ width: '100%', height: '220px', objectFit: 'cover', borderRadius: '4px' }} 
+                    />
                   ) : (
-                    <div style={{ height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-sub)', fontSize: '0.85rem' }}>
-                      No initial photo attached
+                    <div style={{ height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-sub)', background: 'rgba(255,255,255,0.02)' }}>
+                      No initial photo uploaded
                     </div>
                   )}
                 </div>
 
-                <div style={{ background: 'rgba(16, 185, 129, 0.05)', padding: '1rem', borderRadius: 'var(--radius-sm)', border: '1px solid rgba(16, 185, 129, 0.3)' }}>
-                  <div style={{ fontSize: '0.8rem', fontWeight: 700, color: '#34d399', marginBottom: '0.5rem' }}>
-                    ✅ 2. Technician's Resolution Proof
+                {/* After Photo */}
+                <div style={{ background: 'rgba(0,0,0,0.4)', borderRadius: 'var(--radius-sm)', padding: '0.75rem', border: '1px solid rgba(16, 185, 129, 0.4)' }}>
+                  <div style={{ fontSize: '0.75rem', fontWeight: 700, color: '#6ee7b7', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+                    ✅ 2. Tradesman Resolution Proof Photo
                   </div>
                   {verifyModal.resolutionImageUrl ? (
-                    <a href={verifyModal.resolutionImageUrl} target="_blank" rel="noreferrer">
-                      <img 
-                        src={verifyModal.resolutionImageUrl} 
-                        alt="Proof" 
-                        style={{ width: '100%', height: '180px', objectFit: 'cover', borderRadius: 'var(--radius-sm)' }} 
-                      />
-                    </a>
+                    <img 
+                      src={verifyModal.resolutionImageUrl} 
+                      alt="After Resolution" 
+                      style={{ width: '100%', height: '220px', objectFit: 'cover', borderRadius: '4px' }} 
+                    />
                   ) : (
-                    <div style={{ height: '180px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-sub)', fontSize: '0.85rem' }}>
-                      No resolution photo uploaded
+                    <div style={{ height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-sub)', background: 'rgba(255,255,255,0.02)' }}>
+                      No completion photo provided
                     </div>
                   )}
                 </div>
+
               </div>
 
-              {verifyModal.workerRemarks && (
-                <div style={{ background: 'rgba(59, 130, 246, 0.08)', padding: '0.85rem', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-                  👨‍🔧 <strong>Technician Note:</strong> "{verifyModal.workerRemarks}"
+              {/* Technician Remarks */}
+              <div style={{ background: 'rgba(59, 130, 246, 0.1)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.25rem' }}>
+                <div style={{ fontSize: '0.75rem', color: '#93c5fd', textTransform: 'uppercase', fontWeight: 700 }}>
+                  Tradesman Resolution Remarks:
                 </div>
-              )}
+                <div style={{ fontSize: '0.85rem', color: '#fff', marginTop: '0.2rem' }}>
+                  "{verifyModal.workerRemarks || 'Work completed as instructed.'}"
+                </div>
+              </div>
 
               <div className="form-group">
-                <label className="form-label">Admin Verification Remarks</label>
-                <textarea
-                  className="form-control"
-                  rows="2"
-                  placeholder="e.g. Repair verified. Water pipe leak fully rectified."
+                <label className="form-label">Manager Quality Remarks (Optional)</label>
+                <input 
+                  type="text" 
+                  className="form-control" 
+                  placeholder="e.g. Inspected on site. Good quality repair."
                   value={verifyRemarks}
                   onChange={(e) => setVerifyRemarks(e.target.value)}
-                ></textarea>
+                />
               </div>
 
-              <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end', marginTop: '1.5rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1.5rem' }}>
                 <button 
                   type="button" 
-                  className="btn btn-outline" 
+                  className="btn btn-outline"
                   onClick={() => setVerifyModal(null)}
                 >
                   Cancel
                 </button>
-                <button 
-                  type="button" 
-                  className="btn btn-danger"
-                  disabled={submittingVerify}
-                  onClick={() => handleVerifyResolution(false)}
-                >
-                  ❌ Reject (Send Back to Work)
-                </button>
-                <button 
-                  type="button" 
-                  className="btn btn-success"
-                  disabled={submittingVerify}
-                  onClick={() => handleVerifyResolution(true)}
-                >
-                  {submittingVerify ? 'Processing...' : '✅ Approve & Close Ticket'}
-                </button>
+
+                <div style={{ display: 'flex', gap: '0.75rem' }}>
+                  <button 
+                    type="button" 
+                    className="btn btn-outline"
+                    style={{ borderColor: '#ef4444', color: '#f87171' }}
+                    disabled={submittingVerify}
+                    onClick={() => handleVerifyResolution(false)}
+                  >
+                    ❌ Reject & Request Rework
+                  </button>
+
+                  <button 
+                    type="button" 
+                    className="btn btn-primary"
+                    style={{ background: 'linear-gradient(135deg, #10b981, #06b6d4)' }}
+                    disabled={submittingVerify}
+                    onClick={() => handleVerifyResolution(true)}
+                  >
+                    {submittingVerify ? 'Marking Completed...' : '✅ Approve & Mark Completed'}
+                  </button>
+                </div>
               </div>
+
             </div>
           </div>
         )}

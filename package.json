@@ -1,0 +1,12 @@
+{
+  "name": "campus-maintenance-system",
+  "version": "1.0.0",
+  "description": "University Campus Maintenance Complaint & Redressal Platform",
+  "private": true,
+  "scripts": {
+    "qr": "python qr.py",
+    "dev": "npm run dev --prefix frontend",
+    "backend": "node backend/index.js",
+    "seed": "node backend/seeder.js"
+  }
+}

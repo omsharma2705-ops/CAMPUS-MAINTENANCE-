@@ -1,6 +1,7 @@
 import React, { useContext } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { AuthContext } from '../context/AuthContext';
+import NotificationCenter from './NotificationCenter';
 
 const Navbar = () => {
   const { user, logout } = useContext(AuthContext);
@@ -43,6 +44,12 @@ const Navbar = () => {
           {user.role === 'admin' && (
             <>
               <Link 
+                to="/stores" 
+                className={`nav-btn ${location.pathname === '/stores' ? 'active' : ''}`}
+              >
+                📦 Stores & Inventory
+              </Link>
+              <Link 
                 to="/admin/staff" 
                 className={`nav-btn ${location.pathname === '/admin/staff' ? 'active' : ''}`}
               >
@@ -52,15 +59,27 @@ const Navbar = () => {
                 to="/admin/analytics" 
                 className={`nav-btn ${location.pathname === '/admin/analytics' ? 'active' : ''}`}
               >
-                📈 Analytics & KPIs
+                📈 Analytics & Reports
               </Link>
             </>
           )}
 
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: '1rem', paddingLeft: '1rem', borderLeft: '1px solid var(--border)' }}>
+          {/* Notification Center */}
+          <NotificationCenter />
+
+          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginLeft: '0.5rem', paddingLeft: '0.75rem', borderLeft: '1px solid var(--border)' }}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff' }}>{user.name}</div>
-              <div style={{ fontSize: '0.75rem', color: 'var(--text-sub)' }}>{user.department || user.role}</div>
+              <div style={{ fontSize: '0.85rem', fontWeight: 700, color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '0.35rem' }}>
+                <span>{user.name}</span>
+                {user.cardId && (
+                  <span style={{ fontSize: '0.65rem', background: 'rgba(59, 130, 246, 0.25)', color: '#93c5fd', padding: '0.1rem 0.4rem', borderRadius: '4px', border: '1px solid rgba(59, 130, 246, 0.4)' }}>
+                    🪪 {user.cardId}
+                  </span>
+                )}
+              </div>
+              <div style={{ fontSize: '0.72rem', color: 'var(--text-sub)' }}>
+                {user.trade ? `⚡ ${user.trade}` : (user.department || user.role)}
+              </div>
             </div>
             <button onClick={handleLogout} className="btn btn-outline btn-sm" title="Logout">
               🚪 Logout

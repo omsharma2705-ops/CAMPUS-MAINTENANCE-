@@ -29,6 +29,15 @@ const UserSchema = new mongoose.Schema({
     type: String,
     default: '',
   },
+  cardId: {
+    type: String, // University I-Card Number, e.g., 'CAMPUS-2024-8891'
+    trim: true,
+    sparse: true,
+  },
+  trade: {
+    type: String, // E.g., 'Electrician', 'Plumber', 'Carpenter', 'IT Technician', 'HVAC Technician', 'General Maintenance'
+    default: '',
+  },
   isActive: {
     type: Boolean,
     default: true,

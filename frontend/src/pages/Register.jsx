@@ -7,7 +7,9 @@ const Register = () => {
     name: '',
     email: '',
     password: '',
+    cardId: '',
     role: 'student',
+    trade: '',
     department: 'Computer Science & Engineering',
     phone: '',
   });
@@ -27,7 +29,18 @@ const Register = () => {
     'Hostel Block B',
     'Campus Central Library',
     'Admin & Faculty Block',
-    'Sports Complex / Cafeteria'
+    'Sports Complex / Cafeteria',
+    'Facilities Directorate'
+  ];
+
+  const trades = [
+    'Electrician',
+    'Plumber',
+    'Carpenter',
+    'IT Technician',
+    'HVAC Technician',
+    'Civil Mason / Painter',
+    'Sanitation & Cleaning'
   ];
 
   const handleSubmit = async (e) => {
@@ -47,12 +60,12 @@ const Register = () => {
 
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: '1.5rem' }}>
-      <div className="glass-panel" style={{ padding: '2.5rem', width: '100%', maxWidth: '480px' }}>
+      <div className="glass-panel" style={{ padding: '2.5rem', width: '100%', maxWidth: '520px' }}>
         <div style={{ textAlign: 'center', marginBottom: '1.75rem' }}>
           <div style={{ fontSize: '2.5rem', marginBottom: '0.5rem' }}>🏛️</div>
           <h2 style={{ fontSize: '1.6rem', fontWeight: 800, color: '#fff' }}>Join CampusFix</h2>
           <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-            Register to report and track maintenance issues
+            University I-Card Authentication & Maintenance Network
           </p>
         </div>
 
@@ -72,7 +85,7 @@ const Register = () => {
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
-            <label className="form-label">Full Name</label>
+            <label className="form-label">Full Name *</label>
             <input
               type="text"
               className="form-control"
@@ -83,34 +96,48 @@ const Register = () => {
             />
           </div>
 
-          <div className="form-group">
-            <label className="form-label">Email Address</label>
-            <input
-              type="email"
-              className="form-control"
-              placeholder="e.g. rahul@university.edu"
-              value={formData.email}
-              onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-              required
-            />
+          <div className="grid-cols-2" style={{ gap: '0.75rem' }}>
+            <div className="form-group">
+              <label className="form-label">Campus Email *</label>
+              <input
+                type="email"
+                className="form-control"
+                placeholder="e.g. rahul@campus.edu"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                required
+              />
+            </div>
+
+            <div className="form-group">
+              <label className="form-label">University I-Card No. *</label>
+              <input
+                type="text"
+                className="form-control"
+                placeholder="e.g. CAMPUS-2024-4102"
+                value={formData.cardId}
+                onChange={(e) => setFormData({ ...formData, cardId: e.target.value })}
+                required
+              />
+            </div>
           </div>
 
-          <div className="grid-cols-2" style={{ gap: '0.75rem', marginBottom: '1rem' }}>
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Role</label>
+          <div className="grid-cols-2" style={{ gap: '0.75rem' }}>
+            <div className="form-group">
+              <label className="form-label">Portal Role *</label>
               <select
                 className="form-control"
                 value={formData.role}
                 onChange={(e) => setFormData({ ...formData, role: e.target.value })}
               >
-                <option value="student">🎓 Student / Staff</option>
-                <option value="worker">👨‍🔧 Maintenance Staff</option>
-                <option value="admin">👨‍💼 Super Admin</option>
+                <option value="student">🎓 Student / Faculty Scholar</option>
+                <option value="worker">👨‍🔧 Maintenance Tradesman</option>
+                <option value="admin">👨‍💼 Facilities Manager / Admin</option>
               </select>
             </div>
 
-            <div className="form-group" style={{ marginBottom: 0 }}>
-              <label className="form-label">Phone / WhatsApp</label>
+            <div className="form-group">
+              <label className="form-label">Phone (SMS Alerts)</label>
               <input
                 type="tel"
                 className="form-control"
@@ -121,8 +148,23 @@ const Register = () => {
             </div>
           </div>
 
+          {formData.role === 'worker' && (
+            <div className="form-group">
+              <label className="form-label">Trade Specialization *</label>
+              <select
+                className="form-control"
+                value={formData.trade || trades[0]}
+                onChange={(e) => setFormData({ ...formData, trade: e.target.value })}
+              >
+                {trades.map(t => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+            </div>
+          )}
+
           <div className="form-group">
-            <label className="form-label">Department / Hostel / Trade</label>
+            <label className="form-label">Department / Campus Block</label>
             <select
               className="form-control"
               value={formData.department}
@@ -135,7 +177,7 @@ const Register = () => {
           </div>
 
           <div className="form-group">
-            <label className="form-label">Password</label>
+            <label className="form-label">Password *</label>
             <input
               type="password"
               className="form-control"
@@ -147,14 +189,14 @@ const Register = () => {
           </div>
 
           <button type="submit" className="btn btn-primary btn-block" disabled={loading} style={{ marginTop: '0.5rem' }}>
-            {loading ? 'Creating Account...' : 'Create Account'}
+            {loading ? 'Creating University Account...' : 'Register with University I-Card'}
           </button>
         </form>
 
         <div style={{ marginTop: '1.5rem', textAlign: 'center', fontSize: '0.85rem', color: 'var(--text-muted)' }}>
           Already have an account?{' '}
           <Link to="/login" style={{ color: 'var(--primary)', fontWeight: 600 }}>
-            Sign In
+            Sign In here
           </Link>
         </div>
       </div>

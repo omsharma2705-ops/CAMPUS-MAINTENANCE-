@@ -5,6 +5,8 @@ const connectDB = require('./config/db');
 const authRoutes = require('./routes/authRoutes');
 const complaintRoutes = require('./routes/complaintRoutes');
 const adminRoutes = require('./routes/adminRoutes');
+const storeRoutes = require('./routes/storeRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 
 const app = express();
 
@@ -19,8 +21,20 @@ app.use(express.json({ extended: false }));
 app.use('/api/auth', authRoutes);
 app.use('/api/complaints', complaintRoutes);
 app.use('/api/admin', adminRoutes);
+app.use('/api/stores', storeRoutes);
+app.use('/api/notifications', notificationRoutes);
 
-app.get('/', (req, res) => res.json({ status: 'Campus Redressal API Running Smoothly', version: '2.0.0' }));
+app.get('/', (req, res) => res.json({ 
+  status: 'Campus Redressal & Facilities Operations API Running Smoothly', 
+  version: '3.0.0',
+  endpoints: [
+    '/api/auth',
+    '/api/complaints',
+    '/api/admin',
+    '/api/stores',
+    '/api/notifications'
+  ]
+}));
 
 const PORT = process.env.PORT || 5000;
 

@@ -7,6 +7,7 @@ import Dashboard from './pages/Dashboard';
 import SubmitComplaint from './pages/SubmitComplaint';
 import AdminStaff from './pages/AdminStaff';
 import AdminAnalytics from './pages/AdminAnalytics';
+import StoreManagement from './pages/StoreManagement';
 import './index.css';
 
 // Protected Route Wrapper
@@ -45,6 +46,15 @@ function App() {
               element={
                 <ProtectedRoute allowedRoles={['student', 'admin']}>
                   <SubmitComplaint />
+                </ProtectedRoute>
+              } 
+            />
+
+            <Route 
+              path="/stores" 
+              element={
+                <ProtectedRoute allowedRoles={['admin']}>
+                  <StoreManagement />
                 </ProtectedRoute>
               } 
             />
