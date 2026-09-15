@@ -313,6 +313,67 @@ router.get('/export/complaints', [auth, adminOnly], async (req, res) => {
   }
 });
 
+// @route   POST api/admin/complaints/merge-master
+// @desc    Admin merges multiple related complaints into one Master Incident
+// @access  Admin only
+router.post('/complaints/merge-master', [auth, adminOnly], async (req, res) => {
+  try {
+    const { masterId, childIds } = req.body;
+    if (!masterId || !childIds || !childIds.length) {
+      return res.status(400).json({ msg: 'masterId and childIds array are required.' });
+    }
+
+    const master = await Complaint.findById(masterId);
+    if (!master) {
+      return res.status(404).json({ msg: 'Master complaint not found.' });
+    }
+
+    const filteredChildIds = childIds.filter(id => id !== masterId);
+
+    master.isMasterIncident = true;
+    master.linkedComplaints = Array.from(new Set([...(master.linkedComplaints || []).map(id => id.toString()), ...filteredChildIds]));
+    master.linkedDuplicateCount = master.linkedComplaints.length;
+
+    master.timeline.push({
+      status: master.status,
+      message: `Maintenance Admin merged ${filteredChildIds.length} related complaints into this Master Incident.`,
+      actionBy: req.user.id,
+      timestamp: new Date()
+    });
+
+    await master.save();
+
+    // Update child complaints
+    await Complaint.updateMany(
+      { _id: { $in: filteredChildIds } },
+      {
+        $set: {
+          masterIncidentId: master._id,
+          status: 'Assigned',
+          assignedTo: master.assignedTo || null,
+          priority: master.priority
+        },
+        $push: {
+          timeline: {
+            status: 'Assigned',
+            message: `Merged into Master Incident #${master.complaintNumber}. Will be resolved together with primary work order.`,
+            actionBy: req.user.id,
+            timestamp: new Date()
+          }
+        }
+      }
+    );
+
+    res.json({
+      msg: `Successfully merged ${filteredChildIds.length} tickets into Master Incident #${master.complaintNumber}`,
+      master
+    });
+  } catch (err) {
+    console.error('Merge master incident error:', err.message);
+    res.status(500).json({ msg: 'Failed to merge complaints into Master Incident' });
+  }
+});
+
 // @route   GET api/admin/users
 // @desc    Get all users
 // @access  Admin only

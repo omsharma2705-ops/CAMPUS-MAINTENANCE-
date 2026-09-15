@@ -235,11 +235,20 @@ const SubmitComplaint = () => {
   const handleUpvoteExisting = async (duplicateComplaintId) => {
     try {
       setUpvotingId(duplicateComplaintId);
-      await axios.post(`${API_URL}/complaints/${duplicateComplaintId}/upvote`);
+      const res = await axios.post(`${API_URL}/complaints/${duplicateComplaintId}/link-duplicate`);
       setShowDuplicateModal(false);
+      alert(res.data.msg || '✓ Joined Master Incident! You will receive live status updates.');
       navigate('/dashboard');
     } catch (err) {
-      alert('Failed to upvote duplicate issue');
+      console.error('Error linking duplicate:', err);
+      // Fallback to upvote
+      try {
+        await axios.post(`${API_URL}/complaints/${duplicateComplaintId}/upvote`);
+        setShowDuplicateModal(false);
+        navigate('/dashboard');
+      } catch (upErr) {
+        alert('Failed to link issue');
+      }
     } finally {
       setUpvotingId(null);
     }
@@ -650,14 +659,19 @@ const SubmitComplaint = () => {
         {showDuplicateModal && duplicates.length > 0 && (
           <div className="modal-overlay">
             <div className="modal-content" style={{ maxWidth: '680px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                <span style={{ fontSize: '1.75rem' }}>🔍</span>
-                <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#fbbf24' }}>
-                  Similar Active Complaint Detected!
-                </h3>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginBottom: '0.5rem' }}>
+                <span style={{ fontSize: '1.85rem' }}>👥</span>
+                <div>
+                  <h3 style={{ fontSize: '1.25rem', fontWeight: 800, color: '#fbbf24', margin: 0 }}>
+                    Active Master Incident Detected Nearby!
+                  </h3>
+                  <span style={{ fontSize: '0.75rem', color: '#67e8f9', fontWeight: 600 }}>
+                    AI Incident Correlator Found Matching Active Work Orders
+                  </span>
+                </div>
               </div>
               <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
-                An active issue matching this description is already registered. You can upvote it to avoid duplicates and boost priority.
+                Other scholars have already reported an identical or related issue in this facility. You can join the existing ticket as an affected user to boost priority and receive live resolution SMS/alerts without creating duplicate work for technicians.
               </p>
 
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem', marginBottom: '1.5rem' }}>
@@ -665,45 +679,64 @@ const SubmitComplaint = () => {
                   <div 
                     key={dup.complaint._id} 
                     style={{ 
-                      background: 'rgba(13, 19, 33, 0.9)', 
-                      padding: '1rem', 
-                      borderRadius: 'var(--radius-sm)', 
-                      border: '1px solid rgba(251, 191, 36, 0.3)' 
+                      background: 'rgba(15, 23, 42, 0.95)', 
+                      padding: '1.1rem', 
+                      borderRadius: 'var(--radius-md, 12px)', 
+                      border: '1.5px solid rgba(245, 158, 11, 0.45)',
+                      boxShadow: '0 4px 20px rgba(245, 158, 11, 0.1)'
                     }}
                   >
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                      <strong style={{ fontSize: '0.95rem', color: '#fff' }}>{dup.complaint.title}</strong>
-                      <span className="badge badge-p-high" style={{ fontSize: '0.7rem' }}>
-                        {dup.similarity}% Similarity Match
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem', flexWrap: 'wrap' }}>
+                      <div>
+                        <span style={{ fontSize: '0.75rem', color: '#fbbf24', fontWeight: 700 }}>
+                          #{dup.complaint.complaintNumber || 'TICKET'}
+                        </span>
+                        <strong style={{ fontSize: '0.95rem', color: '#fff', display: 'block', marginTop: '0.15rem' }}>
+                          {dup.complaint.title}
+                        </strong>
+                      </div>
+                      <span className="badge badge-p-high" style={{ fontSize: '0.72rem', background: '#d97706' }}>
+                        ⚡ {dup.similarity}% Similarity
                       </span>
                     </div>
-                    <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.35rem 0' }}>
+
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.5rem 0' }}>
                       {dup.complaint.description}
                     </p>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.5rem' }}>
-                      <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)' }}>
-                        📍 {dup.complaint.location?.building || dup.complaint.department} • Status: {dup.complaint.status}
+
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', flexWrap: 'wrap', gap: '0.5rem', borderTop: '1px solid rgba(255,255,255,0.08)', paddingTop: '0.65rem' }}>
+                      <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                        📍 {dup.complaint.location?.building || dup.complaint.department} • Status: <strong style={{ color: '#38bdf8' }}>{dup.complaint.status}</strong>
+                        {dup.complaint.linkedDuplicateCount > 0 && (
+                          <span style={{ marginLeft: '0.5rem', color: '#a78bfa', fontWeight: 600 }}>
+                            👥 {dup.complaint.linkedDuplicateCount + 1} Scholars Impacted
+                          </span>
+                        )}
                       </span>
                       <button
                         type="button"
                         className="btn btn-sm btn-primary"
+                        style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', fontWeight: 700 }}
                         onClick={() => handleUpvoteExisting(dup.complaint._id)}
                         disabled={upvotingId === dup.complaint._id}
                       >
-                        👍 Upvote Active Issue
+                        {upvotingId === dup.complaint._id ? 'Linking...' : '👍 I Am Also Facing This (+1 Me Too)'}
                       </button>
                     </div>
                   </div>
                 ))}
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '1rem' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
+                <span style={{ fontSize: '0.75rem', color: 'var(--text-sub)' }}>
+                  Joining links you directly to the resolution work order.
+                </span>
                 <button 
                   type="button" 
                   className="btn btn-outline" 
                   onClick={() => setShowDuplicateModal(false)}
                 >
-                  Continue Submitting New Complaint
+                  No, Mine Is Different (Submit As New Ticket)
                 </button>
               </div>
             </div>

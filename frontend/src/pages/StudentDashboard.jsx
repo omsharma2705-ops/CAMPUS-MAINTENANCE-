@@ -183,6 +183,11 @@ const StudentDashboard = () => {
                         <span className="badge" style={{ background: 'rgba(59, 130, 246, 0.2)', color: '#93c5fd', fontWeight: 800 }}>
                           {c.complaintNumber || `CMP-${c._id.slice(-6)}`}
                         </span>
+                        {c.isMasterIncident && (
+                          <span style={{ fontSize: '0.72rem', background: 'linear-gradient(135deg, #f59e0b, #b45309)', color: '#fff', padding: '0.2rem 0.6rem', borderRadius: '999px', fontWeight: 700 }}>
+                            👑 Master Incident ({c.linkedDuplicateCount || 1} Scholars Tracking)
+                          </span>
+                        )}
                         <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#fff' }}>{c.title}</h3>
                         <PriorityBadge priority={c.priority} />
                         <SLATimer workOrder={c.workOrder} status={c.status} />

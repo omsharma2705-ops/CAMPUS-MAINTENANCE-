@@ -528,6 +528,46 @@ router.put('/:id/status', [
             complaintNumber: complaint.complaintNumber,
           });
         }
+        // Auto-resolve any linked complaints if this was a master incident
+        if (complaint.isMasterIncident && complaint.linkedComplaints?.length > 0) {
+          try {
+            await Complaint.updateMany(
+              { _id: { $in: complaint.linkedComplaints } },
+              {
+                $set: {
+                  status: 'Resolved',
+                  resolvedAt: new Date(),
+                  resolutionImageUrl: complaint.resolutionImageUrl || '',
+                  workerRemarks: `Resolved via Master Incident #${complaint.complaintNumber}: ${workerRemarks || 'Repairs completed on site.'}`
+                },
+                $push: {
+                  timeline: {
+                    status: 'Resolved',
+                    message: `Repairs successfully completed under Master Incident #${complaint.complaintNumber} by ${user.name}.`,
+                    actionBy: req.user.id,
+                    timestamp: new Date()
+                  }
+                }
+              }
+            );
+
+            // Notify all subscribers of linked complaints
+            if (complaint.subscribers?.length > 0) {
+              for (const subId of complaint.subscribers) {
+                await sendNotification({
+                  recipientId: subId,
+                  title: `Master Incident #${complaint.complaintNumber} Resolved!`,
+                  message: `The reported maintenance issue at ${complaint.location.building} has been resolved by technician ${user.name}.`,
+                  type: 'Completion',
+                  complaint: complaint._id,
+                  complaintNumber: complaint.complaintNumber
+                });
+              }
+            }
+          } catch (linkErr) {
+            console.error('Error auto-resolving linked complaints:', linkErr.message);
+          }
+        }
       }
 
       complaint.timeline.push({
@@ -661,6 +701,71 @@ router.post('/:id/feedback', auth, async (req, res) => {
   } catch (err) {
     console.error('Feedback error:', err.message);
     res.status(500).json({ msg: 'Failed to submit feedback' });
+  }
+});
+
+// @route   POST api/complaints/:id/link-duplicate
+// @desc    Student links their issue to an existing complaint (Me Too / Group Master Incident)
+// @access  Private
+router.post('/:id/link-duplicate', auth, async (req, res) => {
+  try {
+    const masterComplaint = await Complaint.findById(req.params.id);
+    if (!masterComplaint) {
+      return res.status(404).json({ msg: 'Complaint not found' });
+    }
+
+    const userId = req.user.id;
+    const studentUser = await User.findById(userId);
+
+    const alreadySubscribed = masterComplaint.subscribers?.some(s => s.toString() === userId) ||
+      masterComplaint.upvotes?.some(u => u.toString() === userId);
+
+    if (!alreadySubscribed) {
+      if (!masterComplaint.subscribers) masterComplaint.subscribers = [];
+      if (!masterComplaint.upvotes) masterComplaint.upvotes = [];
+
+      masterComplaint.subscribers.push(userId);
+      masterComplaint.upvotes.push(userId);
+      masterComplaint.linkedDuplicateCount = (masterComplaint.linkedDuplicateCount || 0) + 1;
+      masterComplaint.isMasterIncident = true;
+
+      // Auto-escalate to High priority if 3 or more students report
+      if (masterComplaint.linkedDuplicateCount >= 3 && (masterComplaint.priority === 'Low' || masterComplaint.priority === 'Medium')) {
+        masterComplaint.priority = 'High';
+        masterComplaint.timeline.push({
+          status: masterComplaint.status,
+          message: `🔥 Priority auto-escalated to HIGH due to multiple scholar reports (${masterComplaint.linkedDuplicateCount + 1} affected students).`,
+          actionBy: userId,
+          timestamp: new Date()
+        });
+      } else {
+        masterComplaint.timeline.push({
+          status: masterComplaint.status,
+          message: `Scholar ${studentUser?.name || 'Student'} reported also facing this issue (+1 Affected). Total impacted: ${masterComplaint.linkedDuplicateCount + 1}`,
+          actionBy: userId,
+          timestamp: new Date()
+        });
+      }
+
+      await masterComplaint.save();
+
+      await sendNotification({
+        recipientId: userId,
+        title: `Tracking Incident #${masterComplaint.complaintNumber}`,
+        message: `You are now tracking #${masterComplaint.complaintNumber} (${masterComplaint.category} at ${masterComplaint.location?.building || masterComplaint.department}). You will receive live status updates.`,
+        type: 'General',
+        complaint: masterComplaint._id,
+        complaintNumber: masterComplaint.complaintNumber
+      });
+    }
+
+    res.json({
+      msg: 'Successfully linked to Master Incident! You will receive live updates when resolved.',
+      masterComplaint
+    });
+  } catch (err) {
+    console.error('Link duplicate error:', err.message);
+    res.status(500).json({ msg: 'Failed to link duplicate complaint' });
   }
 });
 

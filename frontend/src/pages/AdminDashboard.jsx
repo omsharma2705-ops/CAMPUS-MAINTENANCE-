@@ -36,6 +36,52 @@ const AdminDashboard = () => {
   const [verifyRemarks, setVerifyRemarks] = useState('');
   const [submittingVerify, setSubmittingVerify] = useState(false);
 
+  // Master Incident Grouping States
+  const [selectedComplaintIds, setSelectedComplaintIds] = useState([]);
+  const [showMergeModal, setShowMergeModal] = useState(false);
+  const [primaryMasterId, setPrimaryMasterId] = useState('');
+  const [merging, setMerging] = useState(false);
+
+  const handleToggleSelect = (id) => {
+    setSelectedComplaintIds(prev => 
+      prev.includes(id) ? prev.filter(item => item !== id) : [...prev, id]
+    );
+  };
+
+  const handleSelectAll = () => {
+    if (selectedComplaintIds.length === complaints.length) {
+      setSelectedComplaintIds([]);
+    } else {
+      setSelectedComplaintIds(complaints.map(c => c._id));
+    }
+  };
+
+  const handleOpenMergeModal = () => {
+    if (selectedComplaintIds.length < 2) return;
+    setPrimaryMasterId(selectedComplaintIds[0]);
+    setShowMergeModal(true);
+  };
+
+  const handleConfirmMerge = async () => {
+    if (!primaryMasterId || selectedComplaintIds.length < 2) return;
+    try {
+      setMerging(true);
+      const res = await axios.post(`${API_URL}/admin/complaints/merge-master`, {
+        masterId: primaryMasterId,
+        childIds: selectedComplaintIds
+      });
+      alert(res.data.msg || '✓ Successfully merged complaints into Master Incident!');
+      setShowMergeModal(false);
+      setSelectedComplaintIds([]);
+      fetchData();
+    } catch (err) {
+      console.error('Merge error:', err);
+      alert('Failed to merge complaints.');
+    } finally {
+      setMerging(false);
+    }
+  };
+
   useEffect(() => {
     fetchData();
   }, [filters]);
@@ -302,10 +348,64 @@ const AdminDashboard = () => {
 
         {/* Master Complaints Table */}
         <div className="glass-panel" style={{ padding: '1.5rem' }}>
+          {/* Master Incident Merge Action Toolbar */}
+          {selectedComplaintIds.length > 0 && (
+            <div 
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                padding: '0.85rem 1.25rem',
+                marginBottom: '1rem',
+                background: 'linear-gradient(135deg, rgba(245, 158, 11, 0.15), rgba(217, 119, 6, 0.15))',
+                border: '1.5px solid rgba(245, 158, 11, 0.4)',
+                borderRadius: 'var(--radius-sm, 8px)',
+                flexWrap: 'wrap',
+                gap: '0.75rem'
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <span style={{ fontSize: '1.2rem' }}>👑</span>
+                <span style={{ fontSize: '0.9rem', color: '#fbbf24', fontWeight: 700 }}>
+                  {selectedComplaintIds.length} Complaints Selected
+                </span>
+                <span style={{ fontSize: '0.78rem', color: '#94a3b8' }}>
+                  (Combine into 1 primary Master Work Order for technicians)
+                </span>
+              </div>
+              <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-primary"
+                  style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', fontWeight: 700 }}
+                  onClick={handleOpenMergeModal}
+                  disabled={selectedComplaintIds.length < 2}
+                >
+                  👑 Merge into 1 Master Incident
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-sm btn-outline"
+                  onClick={() => setSelectedComplaintIds([])}
+                >
+                  Deselect All
+                </button>
+              </div>
+            </div>
+          )}
+
           <div style={{ overflowX: 'auto' }}>
             <table style={{ width: '100%', borderCollapse: 'collapse', textAlign: 'left' }}>
               <thead>
                 <tr style={{ borderBottom: '1px solid var(--border)', color: 'var(--text-sub)', fontSize: '0.75rem', textTransform: 'uppercase' }}>
+                  <th style={{ padding: '0.75rem', width: '40px' }}>
+                    <input 
+                      type="checkbox" 
+                      checked={complaints.length > 0 && selectedComplaintIds.length === complaints.length} 
+                      onChange={handleSelectAll} 
+                      title="Select all complaints"
+                    />
+                  </th>
                   <th style={{ padding: '0.75rem' }}>Complaint #</th>
                   <th style={{ padding: '0.75rem' }}>Issue & Category</th>
                   <th style={{ padding: '0.75rem' }}>Location (Block & Room)</th>
@@ -318,13 +418,20 @@ const AdminDashboard = () => {
               <tbody>
                 {complaints.length === 0 ? (
                   <tr>
-                    <td colSpan="7" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                    <td colSpan="8" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                       No complaints matching criteria.
                     </td>
                   </tr>
                 ) : (
                   complaints.map((c) => (
                     <tr key={c._id} style={{ borderBottom: '1px solid rgba(255,255,255,0.05)', fontSize: '0.85rem' }}>
+                      <td style={{ padding: '1rem 0.75rem', verticalAlign: 'top' }}>
+                        <input 
+                          type="checkbox" 
+                          checked={selectedComplaintIds.includes(c._id)} 
+                          onChange={() => handleToggleSelect(c._id)} 
+                        />
+                      </td>
                       
                       {/* Complaint ID & Lodger */}
                       <td style={{ padding: '1rem 0.75rem', verticalAlign: 'top' }}>
@@ -346,11 +453,21 @@ const AdminDashboard = () => {
                         <div style={{ fontWeight: 700, color: '#fff', marginBottom: '0.2rem' }}>
                           {c.title}
                         </div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                           <span style={{ color: 'var(--primary)', fontWeight: 600 }}>{c.category}</span>
                           {c.isAiCategorized && (
                             <span style={{ fontSize: '0.65rem', background: 'rgba(6, 182, 212, 0.2)', color: '#67e8f9', padding: '0.1rem 0.35rem', borderRadius: '3px' }}>
                               AI {c.aiConfidence}%
+                            </span>
+                          )}
+                          {c.isMasterIncident && (
+                            <span style={{ fontSize: '0.68rem', background: 'linear-gradient(135deg, #f59e0b, #b45309)', color: '#fff', padding: '0.12rem 0.45rem', borderRadius: '999px', fontWeight: 700 }}>
+                              👑 Master Incident ({c.linkedDuplicateCount || 1} Reports)
+                            </span>
+                          )}
+                          {c.masterIncidentId && (
+                            <span style={{ fontSize: '0.68rem', background: 'rgba(99, 102, 241, 0.25)', color: '#a5b4fc', border: '1px solid rgba(99, 102, 241, 0.4)', padding: '0.12rem 0.45rem', borderRadius: '999px', fontWeight: 600 }}>
+                              🔗 Merged to Master
                             </span>
                           )}
                         </div>
@@ -653,6 +770,99 @@ const AdminDashboard = () => {
                     {submittingVerify ? 'Marking Completed...' : '✅ Approve & Mark Completed'}
                   </button>
                 </div>
+              </div>
+
+            </div>
+          </div>
+        )}
+
+        {/* MERGE MASTER INCIDENT MODAL */}
+        {showMergeModal && (
+          <div className="modal-overlay">
+            <div className="modal-content" style={{ maxWidth: '640px' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <span style={{ fontSize: '1.5rem' }}>👑</span>
+                  <h3 style={{ fontSize: '1.3rem', fontWeight: 800, color: '#fbbf24', margin: 0 }}>
+                    Merge Complaints into Master Incident
+                  </h3>
+                </div>
+                <button 
+                  onClick={() => setShowMergeModal(false)}
+                  className="btn btn-sm btn-outline"
+                >
+                  ✕
+                </button>
+              </div>
+
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1.25rem' }}>
+                You have selected <strong>{selectedComplaintIds.length} complaints</strong>. Choose which ticket will serve as the <strong>Primary Master Work Order</strong>. All other tickets will be grouped under it, and will automatically resolve when the primary repair is signed off.
+              </p>
+
+              <div style={{ marginBottom: '1.5rem' }}>
+                <label className="form-label" style={{ fontSize: '0.85rem', fontWeight: 700, color: '#93c5fd' }}>
+                  Select Primary Master Incident:
+                </label>
+                <div style={{ maxHeight: '280px', overflowY: 'auto', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  {complaints
+                    .filter(c => selectedComplaintIds.includes(c._id))
+                    .map(c => (
+                      <label 
+                        key={c._id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '0.75rem',
+                          padding: '0.85rem',
+                          borderRadius: '8px',
+                          border: primaryMasterId === c._id ? '2px solid #f59e0b' : '1px solid rgba(255,255,255,0.1)',
+                          background: primaryMasterId === c._id ? 'rgba(245, 158, 11, 0.12)' : 'rgba(255,255,255,0.02)',
+                          cursor: 'pointer'
+                        }}
+                      >
+                        <input 
+                          type="radio" 
+                          name="primaryMaster" 
+                          value={c._id}
+                          checked={primaryMasterId === c._id}
+                          onChange={() => setPrimaryMasterId(c._id)}
+                          style={{ marginTop: '0.25rem' }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <strong style={{ color: '#fff', fontSize: '0.88rem' }}>
+                              #{c.complaintNumber} — {c.title}
+                            </strong>
+                            <span style={{ fontSize: '0.75rem', color: '#fbbf24', fontWeight: 600 }}>
+                              {c.category}
+                            </span>
+                          </div>
+                          <div style={{ fontSize: '0.78rem', color: '#94a3b8', marginTop: '0.2rem' }}>
+                            🏢 {c.location?.building} • {c.location?.room} • Lodged by: {c.user?.name}
+                          </div>
+                        </div>
+                      </label>
+                    ))}
+                </div>
+              </div>
+
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.75rem' }}>
+                <button 
+                  type="button" 
+                  className="btn btn-outline"
+                  onClick={() => setShowMergeModal(false)}
+                >
+                  Cancel
+                </button>
+                <button 
+                  type="button" 
+                  className="btn btn-primary"
+                  style={{ background: 'linear-gradient(135deg, #f59e0b, #d97706)', fontWeight: 700 }}
+                  disabled={merging || !primaryMasterId}
+                  onClick={handleConfirmMerge}
+                >
+                  {merging ? 'Merging Incidents...' : `👑 Confirm Merge (${selectedComplaintIds.length} Tickets)`}
+                </button>
               </div>
 
             </div>

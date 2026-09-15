@@ -152,6 +152,32 @@ const ComplaintSchema = new mongoose.Schema({
     type: Number,
     default: 0,
   },
+  // Master Incident & Duplicate Grouping
+  isMasterIncident: {
+    type: Boolean,
+    default: false,
+  },
+  masterIncidentId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'complaint',
+    default: null,
+  },
+  linkedDuplicateCount: {
+    type: Number,
+    default: 0,
+  },
+  linkedComplaints: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'complaint',
+    }
+  ],
+  subscribers: [
+    {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'user',
+    }
+  ],
   upvotes: [
     {
       type: mongoose.Schema.Types.ObjectId,
